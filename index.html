@@ -8,7 +8,6 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    /* [CSS unchanged for brevity - keep all your existing styles] */
     :root{
       --primary-color:#63AB8F;
       --secondary-color:#4A8C7D;
@@ -303,6 +302,7 @@
                   <ul style="list-style-type:none;padding-left:0;">
                     <li style="margin-bottom:8px;">✓ Fetches all active users</li>
                     <li style="margin-bottom:8px;">✓ Queries presence history via User Details API</li>
+                    <li style="margin-bottom:8px;">✓ Splits long date ranges into 7-day windows</li>
                     <li style="margin-bottom:8px;">✓ Calculates concurrent logged-in users</li>
                     <li style="margin-bottom:8px;">✓ Identifies peak usage times automatically</li>
                     <li>✓ No interacting hours - pure concurrency analysis</li>
@@ -311,21 +311,60 @@
               </div>
             </div>
 
-            <!-- Right Column - Results (Unchanged) -->
+            <!-- Right Column - Results -->
             <div class="right-column">
               <!-- Key Stats -->
               <div class="stats-grid">
-                <div class="stat-card"><div class="stat-label">Total Users</div><div class="stat-value" id="statTotalUsers">0</div><div style="font-size:12px;color:var(--text-light);">Active licensed users</div></div>
-                <div class="stat-card peak-stat"><div class="stat-label">Peak Concurrency</div><div class="stat-value" id="statPeakConcurrency">0</div><div style="font-size:12px;color:var(--text-light);">Max concurrent logged-in</div></div>
-                <div class="stat-card"><div class="stat-label">Avg Concurrency</div><div class="stat-value" id="statAvgConcurrency">0</div><div style="font-size:12px;color:var(--text-light);">Period average</div></div>
-                <div class="stat-card"><div class="stat-label">Total Intervals</div><div class="stat-value" id="statTotalIntervals">0</div><div style="font-size:12px;color:var(--text-light);">Time slices analysed</div></div>
+                <div class="stat-card">
+                  <div class="stat-label">Total Users</div>
+                  <div class="stat-value" id="statTotalUsers">0</div>
+                  <div style="font-size:12px;color:var(--text-light);">Active licensed users</div>
+                </div>
+                <div class="stat-card peak-stat">
+                  <div class="stat-label">Peak Concurrency</div>
+                  <div class="stat-value" id="statPeakConcurrency">0</div>
+                  <div style="font-size:12px;color:var(--text-light);">Max concurrent logged-in</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label">Avg Concurrency</div>
+                  <div class="stat-value" id="statAvgConcurrency">0</div>
+                  <div style="font-size:12px;color:var(--text-light);">Period average</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label">Total Intervals</div>
+                  <div class="stat-value" id="statTotalIntervals">0</div>
+                  <div style="font-size:12px;color:var(--text-light);">Time slices analysed</div>
+                </div>
               </div>
+
               <!-- Peak Times Cards -->
               <div class="peak-time-grid">
-                <div class="peak-card"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:24px;">🏆</span><h3 style="margin:0;font-size:18px;color:var(--text-color);">Overall Peak</h3></div><div class="peak-time" id="peakTimeOverall">--:--</div><div style="color:var(--text-light);" id="peakConcurrencyOverall">0 concurrent users</div></div>
-                <div class="peak-card"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:24px;">📅</span><h3 style="margin:0;font-size:18px;color:var(--text-color);">Peak Day</h3></div><div class="peak-time" id="peakDay">--/--/----</div><div style="color:var(--text-light);" id="peakDayConcurrency">0 concurrent users</div></div>
-                <div class="peak-card"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:24px;">⏰</span><h3 style="margin:0;font-size:18px;color:var(--text-color);">Busiest Hour</h3></div><div class="peak-time" id="peakHour">--:00</div><div style="color:var(--text-light);" id="peakHourConcurrency">0 concurrent users</div></div>
+                <div class="peak-card">
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:24px;">🏆</span>
+                    <h3 style="margin:0;font-size:18px;color:var(--text-color);">Overall Peak</h3>
+                  </div>
+                  <div class="peak-time" id="peakTimeOverall">--:--</div>
+                  <div style="color:var(--text-light);" id="peakConcurrencyOverall">0 concurrent users</div>
+                </div>
+                <div class="peak-card">
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:24px;">📅</span>
+                    <h3 style="margin:0;font-size:18px;color:var(--text-color);">Peak Day</h3>
+                  </div>
+                  <div class="peak-time" id="peakDay">--/--/----</div>
+                  <div style="color:var(--text-light);" id="peakDayConcurrency">0 concurrent users</div>
+                </div>
+                <div class="peak-card">
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:24px;">⏰</span>
+                    <h3 style="margin:0;font-size:18px;color:var(--text-color);">Busiest Hour</h3>
+                  </div>
+                  <div class="peak-time" id="peakHour">--:00</div>
+                  <div style="color:var(--text-light);" id="peakHourConcurrency">0 concurrent users</div>
+                </div>
               </div>
+
               <!-- Concurrency Chart -->
               <div class="card">
                 <h2>📊 Concurrency Over Time</h2>
@@ -337,22 +376,57 @@
                   <canvas id="concurrencyChart"></canvas>
                 </div>
               </div>
+
               <!-- Peak Intervals Table -->
               <div class="card">
                 <h2>⚠️ Peak Intervals (Exceeding Threshold)</h2>
                 <div class="table-container">
-                  <table id="peakTable"><thead><tr><th>Date & Time (UTC)</th><th>Concurrent Users</th><th>% of Peak</th><th>Status</th></tr></thead><tbody id="peakTableBody"><tr><td colspan="4" style="text-align:center;padding:48px;color:var(--text-light);">No data yet. Fetch users and run concurrency analysis.</td></tr></tbody></table>
+                  <table id="peakTable">
+                    <thead>
+                      <tr>
+                        <th>Date & Time (UTC)</th>
+                        <th>Concurrent Users</th>
+                        <th>% of Peak</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="peakTableBody">
+                      <tr>
+                        <td colspan="4" style="text-align:center;padding:48px;color:var(--text-light);">
+                          No data yet. Fetch users and run concurrency analysis.
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
+
               <!-- All Intervals Data -->
               <div class="card">
                 <h2>📋 All Intervals</h2>
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
                   <input type="text" id="searchInterval" placeholder="🔍 Search date/time..." style="max-width:300px;padding:12px;">
-                  <span style="font-size:13px;color:var(--text-light);background:var(--pill);padding:8px 16px;border-radius:20px;">Showing <span id="visibleIntervals">0</span>/<span id="totalIntervals">0</span> intervals</span>
+                  <span style="font-size:13px;color:var(--text-light);background:var(--pill);padding:8px 16px;border-radius:20px;">
+                    Showing <span id="visibleIntervals">0</span>/<span id="totalIntervals">0</span> intervals
+                  </span>
                 </div>
                 <div class="table-container" style="max-height:400px;">
-                  <table id="intervalsTable"><thead><tr><th>Interval Start (UTC)</th><th>Concurrent Users</th><th>Change</th></tr></thead><tbody id="intervalsTableBody"><tr><td colspan="3" style="text-align:center;padding:48px;color:var(--text-light);">No data available.</td></tr></tbody></table>
+                  <table id="intervalsTable">
+                    <thead>
+                      <tr>
+                        <th>Interval Start (UTC)</th>
+                        <th>Concurrent Users</th>
+                        <th>Change</th>
+                      </tr>
+                    </thead>
+                    <tbody id="intervalsTableBody">
+                      <tr>
+                        <td colspan="3" style="text-align:center;padding:48px;color:var(--text-light);">
+                          No data available.
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
@@ -679,6 +753,9 @@
         const diffTime = Math.abs(end - start);
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
         el.dateRangeInfo.innerHTML = `<strong>Selected:</strong> ${formatDateFromInterval(fromDate+'T00:00:00.000Z/')} to ${formatDateFromInterval(toDate+'T00:00:00.000Z/')} (${diffDays} days)`;
+        if (diffDays > 7) {
+          el.dateRangeInfo.innerHTML += '<br><span style="color:var(--warning);">⚠️ Range >7 days - will be split into 7-day windows</span>';
+        }
       }
     }
 
@@ -782,16 +859,14 @@
       return intervals;
     }
 
-    // ==================== FETCH CONCURRENCY - FIXED: USING CORRECT API ====================
-    // CORRECT ENDPOINT: /api/v2/analytics/users/details/query
-    // This returns actual presence intervals with systemPresence
+    // ==================== FETCH CONCURRENCY - FIXED WITH 7-DAY WINDOW SPLITTING ====================
     async function fetchConcurrency() {
       if (!appState.users.length) {
         showStatusMessage('Please fetch users first', 'error');
         return;
       }
 
-      setLoading(true, 'Analysing Concurrency', 'Querying user details for presence history...');
+      setLoading(true, 'Analysing Concurrency', 'Splitting date range into 7-day windows...');
       updateLoadingProgress(5);
 
       try {
@@ -802,102 +877,110 @@
           throw new Error('Please select a date range');
         }
 
-        const interval = `${dateFrom}T00:00:00.000Z/${dateTo}T23:59:59.999Z`;
         const granularity = appState.currentGranularity;
-        
-        // Get all user IDs
         const userIds = appState.users.map(u => u.id);
-        const batchSize = 25; // API allows up to 100 per query [citation:3][citation:4]
-        const concurrencyMap = new Map();
+        const batchSize = 25;
         
-        // Generate our target intervals
-        const intervals = generateIntervals(dateFrom, dateTo, granularity);
-        intervals.forEach(interval => {
+        // --- STEP 1: Split the overall range into 7-day chunks ---
+        const startDate = new Date(`${dateFrom}T00:00:00.000Z`);
+        const endDate = new Date(`${dateTo}T23:59:59.999Z`);
+        const intervals7Day = [];
+        
+        let currentStart = new Date(startDate);
+        while (currentStart < endDate) {
+          let currentEnd = new Date(currentStart);
+          currentEnd.setDate(currentEnd.getDate() + 6); // Add 6 days = 7 day window
+          if (currentEnd > endDate) currentEnd = new Date(endDate);
+          
+          // Format: YYYY-MM-DDTHH:MM:SS.FFFZ/YYYY-MM-DDTHH:MM:SS.FFFZ
+          const intervalStr = `${currentStart.toISOString().split('.')[0]}Z/${currentEnd.toISOString().split('.')[0]}Z`;
+          intervals7Day.push(intervalStr);
+          
+          // Move to next window
+          currentStart = new Date(currentEnd);
+          currentStart.setDate(currentStart.getDate() + 1);
+        }
+
+        // Generate our target granular intervals ONCE for the whole period
+        const allGranularIntervals = generateIntervals(dateFrom, dateTo, granularity);
+        const concurrencyMap = new Map();
+        allGranularIntervals.forEach(interval => {
           concurrencyMap.set(interval, new Set());
         });
 
-        updateLoadingProgress(20);
-        
-        // Process users in batches
-        for (let i = 0; i < userIds.length; i += batchSize) {
-          const batch = userIds.slice(i, i + batchSize);
-          const progress = 20 + ((i / userIds.length) * 70);
-          updateLoadingProgress(progress);
+        updateLoadingProgress(10);
+        showStatusMessage(`📅 Split into ${intervals7Day.length} x 7-day windows`, 'info');
+
+        // --- STEP 2: Process each 7-day window ---
+        for (let w = 0; w < intervals7Day.length; w++) {
+          const windowInterval = intervals7Day[w];
+          el.loadingSubtext.innerHTML = `Processing window ${w+1}/${intervals7Day.length}: ${windowInterval}`;
           
-          el.loadingSubtext.innerHTML = `Processing batch ${Math.floor(i/batchSize)+1} of ${Math.ceil(userIds.length/batchSize)}...`;
+          // Process users in batches for THIS window
+          for (let i = 0; i < userIds.length; i += batchSize) {
+            const batch = userIds.slice(i, i + batchSize);
+            const overallProgress = 10 + ((w / intervals7Day.length) * 80) + ((i / userIds.length) * (80 / intervals7Day.length));
+            updateLoadingProgress(overallProgress);
 
-          // --- CORRECT API: User Details Query ---
-          // This is the documented endpoint for historical presence [citation:1][citation:6][citation:8]
-          const queryBody = {
-            interval: interval,
-            userFilters: [{
-              type: 'or',
-              predicates: batch.map(userId => ({
-                type: 'dimension',
-                dimension: 'userId',
-                value: userId
-              }))
-            }],
-            paging: {
-              pageSize: 100,
-              pageNumber: 1
-            }
-          };
+            const queryBody = {
+              interval: windowInterval,
+              userFilters: [{
+                type: 'or',
+                predicates: batch.map(userId => ({
+                  type: 'dimension',
+                  dimension: 'userId',
+                  value: userId
+                }))
+              }],
+              paging: {
+                pageSize: 100,
+                pageNumber: 1
+              }
+            };
 
-          try {
-            const response = await apiCall('/api/v2/analytics/users/details/query', {
-              method: 'POST',
-              body: JSON.stringify(queryBody)
-            });
-
-            // The response contains a 'userDetails' array
-            if (response.userDetails && Array.isArray(response.userDetails)) {
-              response.userDetails.forEach(userDetail => {
-                const userId = userDetail.userId;
-                
-                // PRIMARY PRESENCE - this is the user's login/logout status
-                // 'primaryPresence' array contains the intervals for system presence [citation:8]
-                if (userDetail.primaryPresence && Array.isArray(userDetail.primaryPresence)) {
-                  userDetail.primaryPresence.forEach(presenceEvent => {
-                    // systemPresence 'AVAILABLE' means the user was logged in
-                    // Also include 'ON_QUEUE' as they are definitely logged in
-                    if (presenceEvent.systemPresence === 'AVAILABLE' || 
-                        presenceEvent.systemPresence === 'ON_QUEUE' ||
-                        presenceEvent.systemPresence === 'BUSY' ||
-                        presenceEvent.systemPresence === 'IDLE') {
-                      
-                      // The interval when this presence was active
-                      const presenceStart = presenceEvent.startTime;
-                      // We need to create an interval string. If no end time, assume it runs to the end of our query range
-                      const presenceEnd = presenceEvent.endTime || interval.split('/')[1];
-                      const presenceInterval = `${presenceStart}/${presenceEnd}`;
-                      
-                      // Map this presence interval to our granular intervals
-                      intervals.forEach(granularInterval => {
-                        if (intervalsOverlap(presenceInterval, granularInterval)) {
-                          const userSet = concurrencyMap.get(granularInterval);
-                          if (userSet) {
-                            userSet.add(userId);
-                          }
-                        }
-                      });
-                    }
-                  });
-                }
+            try {
+              const response = await apiCall('/api/v2/analytics/users/details/query', {
+                method: 'POST',
+                body: JSON.stringify(queryBody)
               });
-            }
-          } catch (batchError) {
-            console.warn(`User details query failed for batch ${i}-${i+batchSize}:`, batchError);
-            showStatusMessage(`⚠️ Batch ${Math.floor(i/batchSize)+1} failed - continuing with partial data`, 'warn');
-          }
 
-          // Rate limiting - 200ms between batches
-          await new Promise(resolve => setTimeout(resolve, 200));
+              if (response.userDetails) {
+                response.userDetails.forEach(userDetail => {
+                  const userId = userDetail.userId;
+                  if (userDetail.primaryPresence) {
+                    userDetail.primaryPresence.forEach(presenceEvent => {
+                      // User is considered logged-in if they have ANY presence state other than 'Offline'
+                      // 'AVAILABLE', 'ON_QUEUE', 'BUSY', 'IDLE' all mean they are logged in
+                      if (presenceEvent.systemPresence !== 'Offline' && presenceEvent.systemPresence !== null) {
+                        const presenceStart = presenceEvent.startTime;
+                        const presenceEnd = presenceEvent.endTime || windowInterval.split('/')[1];
+                        const presenceInterval = `${presenceStart}/${presenceEnd}`;
+                        
+                        // Map to our granular intervals
+                        allGranularIntervals.forEach(granularInterval => {
+                          if (intervalsOverlap(presenceInterval, granularInterval)) {
+                            const userSet = concurrencyMap.get(granularInterval);
+                            if (userSet) userSet.add(userId);
+                          }
+                        });
+                      }
+                    });
+                  }
+                });
+              }
+            } catch (batchError) {
+              console.warn(`Window ${w+1}, batch ${i}-${i+batchSize} failed:`, batchError);
+              showStatusMessage(`⚠️ Window ${w+1} partial failure`, 'warn');
+            }
+
+            // Rate limiting - 200ms between batches
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
         }
 
-        updateLoadingProgress(90);
+        updateLoadingProgress(95);
 
-        // Convert concurrencyMap to array
+        // --- STEP 3: Convert map to array and sort ---
         const concurrencyData = [];
         let peakConcurrency = 0;
         let totalConcurrency = 0;
@@ -910,9 +993,7 @@
             date: new Date(interval.split('/')[0])
           });
           totalConcurrency += concurrent;
-          if (concurrent > peakConcurrency) {
-            peakConcurrency = concurrent;
-          }
+          if (concurrent > peakConcurrency) peakConcurrency = concurrent;
         });
 
         concurrencyData.sort((a, b) => a.date - b.date);
@@ -933,7 +1014,7 @@
         updateLoadingProgress(100);
         setTimeout(() => setLoading(false), 500);
         
-        showStatusMessage(`✅ Concurrency analysis complete - Peak: ${peakConcurrency} concurrent users`, 'success');
+        showStatusMessage(`✅ Concurrency analysis complete - Peak: ${peakConcurrency} concurrent users over ${concurrencyData.length} intervals`, 'success');
         
       } catch (error) {
         setLoading(false);
