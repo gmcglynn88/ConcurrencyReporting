@@ -215,6 +215,16 @@
       margin-left: 12px;
       display: inline-block;
     }
+    .business-hours-badge {
+      background: var(--warning);
+      color: #000;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 12px;
+      display: inline-block;
+    }
   </style>
 </head>
 <body>
@@ -226,8 +236,9 @@
           <div class="brand-main">
             <h1>📊 Concurrency & Peak Time Analyser</h1>
             <span class="region-badge">🇬🇧 LONDON</span>
+            <span class="business-hours-badge">🕒 Business Hours 8am-8pm • No Weekends</span>
           </div>
-          <div class="subtitle">Genesys Cloud - London Region (apps.euw2.pure.cloud)</div>
+          <div class="subtitle">Genesys Cloud - London Region (apps.euw2.pure.cloud) • 2-Hour Session Cap</div>
         </div>
       </div>
       <div class="connection-status" id="connectionStatus">
@@ -308,17 +319,16 @@
                 </div>
               </div>
 
-              <div class="info-box" style="margin-top:24px;">
+              <div class="info-box" style="margin-top:24px;background:rgba(255,193,7,0.1);border-color:var(--warning);">
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-                  <span style="background:var(--primary-color);color:white;padding:2px 12px;border-radius:20px;font-size:12px;">London Region</span>
+                  <span style="background:var(--warning);color:#000;padding:2px 12px;border-radius:20px;font-size:12px;">⚠️ BUSINESS HOURS FILTERING</span>
                 </div>
                 <ul style="list-style-type:none;padding-left:0;">
-                  <li style="margin-bottom:8px;">✓ Fetches all active users</li>
-                  <li style="margin-bottom:8px;">✓ Queries presence history via User Details API</li>
-                  <li style="margin-bottom:8px;">✓ Splits long date ranges into 7-day windows</li>
-                  <li style="margin-bottom:8px;">✓ Calculates concurrent logged-in users with time-weighted accuracy</li>
-                  <li style="margin-bottom:8px;">✓ **4-hour session cap** prevents overnight counting</li>
-                  <li>✓ Pure concurrency analysis - no interacting hours</li>
+                  <li style="margin-bottom:8px;">✓ <strong>Weekends excluded</strong> - Saturday & Sunday filtered out</li>
+                  <li style="margin-bottom:8px;">✓ <strong>Hours restricted</strong> - 8:00 AM to 8:00 PM only</li>
+                  <li style="margin-bottom:8px;">✓ <strong>Session capping</strong> - Max 2 hours if no logout</li>
+                  <li style="margin-bottom:8px;">✓ <strong>Offline users</strong> - Always excluded</li>
+                  <li>✓ <strong>Time-weighted</strong> - Only minutes actually present</li>
                 </ul>
               </div>
             </div>
@@ -341,7 +351,7 @@
               <div class="stat-card">
                 <div class="stat-label">Avg Concurrency</div>
                 <div class="stat-value" id="statAvgConcurrency">0</div>
-                <div style="font-size:12px;color:var(--text-light);">Period average</div>
+                <div style="font-size:12px;color:var(--text-light);">Period average (business hours only)</div>
               </div>
               <div class="stat-card">
                 <div class="stat-label">Total Intervals</div>
@@ -380,7 +390,7 @@
 
             <!-- Concurrency Chart -->
             <div class="card">
-              <h2>📊 Concurrency Over Time</h2>
+              <h2>📊 Concurrency Over Time (Business Hours Only)</h2>
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
                 <span id="granularityLabel" style="font-weight:600;color:var(--primary-color);background:var(--pill);padding:8px 16px;border-radius:20px;">1-hour intervals</span>
                 <span style="background:rgba(220,53,69,0.1);padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;">Alert threshold: <span id="thresholdValue" style="color:var(--danger);">20</span> users</span>
@@ -871,14 +881,14 @@
       return intervals;
     }
 
-    // ==================== FETCH CONCURRENCY - WITH 4-HOUR SESSION CAP ====================
+    // ==================== FETCH CONCURRENCY - WITH BUSINESS HOURS & STRICT SESSION CAPPING ====================
     async function fetchConcurrency() {
       if (!appState.users.length) {
         showStatusMessage('Please fetch users first', 'error');
         return;
       }
 
-      setLoading(true, 'Analysing Concurrency', 'Splitting date range into 7-day windows...');
+      setLoading(true, 'Analysing Concurrency', 'Applying business hours filtering (8am-8pm, weekdays only)...');
       updateLoadingProgress(5);
 
       try {
@@ -893,6 +903,16 @@
         const userIds = appState.users.map(u => u.id);
         const batchSize = 25;
         
+        // ============ BUSINESS HOURS CONFIGURATION - ADJUST THESE TO MATCH YOUR ORG ============
+        const BUSINESS_HOURS = {
+          enabled: true,           // Set to false to disable ALL filtering
+          startHour: 8,           // 8:00 AM - change to your business start time (0-23)
+          endHour: 20,           // 8:00 PM - change to your business end time (0-23)
+          excludeWeekends: true, // Exclude Saturday and Sunday
+          maxSessionHours: 2,    // Max 2 hours for sessions without end time
+          timezone: 'UTC'        // Keep as UTC for consistency
+        };
+
         // Split the overall range into 7-day chunks
         const startDate = new Date(`${dateFrom}T00:00:00.000Z`);
         const endDate = new Date(`${dateTo}T23:59:59.999Z`);
@@ -926,7 +946,7 @@
         // Process each 7-day window
         for (let w = 0; w < intervals7Day.length; w++) {
           const windowInterval = intervals7Day[w];
-          el.loadingSubtext.innerHTML = `Processing window ${w+1}/${intervals7Day.length}: ${windowInterval}`;
+          el.loadingSubtext.innerHTML = `Processing window ${w+1}/${intervals7Day.length}: ${windowInterval} (business hours only)`;
           
           for (let i = 0; i < userIds.length; i += batchSize) {
             const batch = userIds.slice(i, i + batchSize);
@@ -963,14 +983,34 @@
                       // ONLY count if presence is NOT Offline
                       if (presenceEvent.systemPresence !== 'Offline' && presenceEvent.systemPresence !== null) {
                         
-                        // CRITICAL FIX: Cap sessions at 4 hours if no end time
-                        // This prevents users who never logout from skewing overnight data
+                        // Parse the presence start time for filtering
+                        const presenceStartDate = new Date(presenceEvent.startTime);
+                        
+                        // ============ BUSINESS HOURS FILTERING ============
+                        if (BUSINESS_HOURS.enabled) {
+                          const hour = presenceStartDate.getUTCHours();
+                          const day = presenceStartDate.getUTCDay(); // 0 = Sunday, 6 = Saturday
+                          
+                          // Skip weekends if enabled
+                          if (BUSINESS_HOURS.excludeWeekends && (day === 0 || day === 6)) {
+                            return; // Skip this presence event
+                          }
+                          
+                          // Skip outside business hours
+                          if (hour < BUSINESS_HOURS.startHour || hour >= BUSINESS_HOURS.endHour) {
+                            return; // Skip this presence event
+                          }
+                        }
+                        
+                        // ============ STRONG SESSION CAPPING ============
+                        // Cap sessions at maxSessionHours if no end time
                         let presenceEnd = presenceEvent.endTime;
                         
                         if (!presenceEnd) {
                           const start = new Date(presenceEvent.startTime);
-                          const fourHoursLater = new Date(start.getTime() + (4 * 60 * 60 * 1000));
-                          presenceEnd = fourHoursLater.toISOString();
+                          const maxSessionMs = BUSINESS_HOURS.maxSessionHours * 60 * 60 * 1000;
+                          const cappedEnd = new Date(start.getTime() + maxSessionMs);
+                          presenceEnd = cappedEnd.toISOString();
                         }
                         
                         const presenceInterval = `${presenceEvent.startTime}/${presenceEnd}`;
@@ -1035,7 +1075,11 @@
         updateLoadingProgress(100);
         setTimeout(() => setLoading(false), 500);
         
-        showStatusMessage(`✅ London concurrency analysis complete - Peak: ${peakConcurrency} concurrent users over ${concurrencyData.length} intervals`, 'success');
+        // Calculate how many intervals were filtered out
+        const totalPossibleIntervals = allGranularIntervals.length;
+        const filteredOut = totalPossibleIntervals - concurrencyData.length;
+        
+        showStatusMessage(`✅ London concurrency analysis complete - Peak: ${peakConcurrency} concurrent users (${filteredOut} intervals filtered out - weekends/after hours)`, 'success');
         
       } catch (error) {
         setLoading(false);
@@ -1116,7 +1160,7 @@
       if (appState.currentGranularity === 'PT15M') granularityText = '15-minute';
       else if (appState.currentGranularity === 'PT30M') granularityText = '30-minute';
       else if (appState.currentGranularity === 'P1D') granularityText = 'daily';
-      el.granularityLabel.textContent = `${granularityText} intervals`;
+      el.granularityLabel.textContent = `${granularityText} intervals (business hours only)`;
     }
 
     function renderConcurrencyChart() {
@@ -1139,7 +1183,7 @@
           labels: labels,
           datasets: [
             { 
-              label: 'Concurrent Logged-in Users', 
+              label: 'Concurrent Logged-in Users (Business Hours)', 
               data: data, 
               borderColor: '#63AB8F', 
               backgroundColor: 'rgba(99, 171, 143, 0.1)', 
@@ -1197,7 +1241,7 @@
       const peakData = appState.concurrencyData.filter(item => item.concurrent > threshold).sort((a, b) => b.concurrent - a.concurrent);
       
       if (peakData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:48px;color:var(--text-light);">No intervals exceed the threshold of ${threshold} concurrent users.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:48px;color:var(--text-light);">No intervals exceed the threshold of ${threshold} concurrent users during business hours.</td></tr>`;
         return;
       }
       
@@ -1265,11 +1309,13 @@
         return; 
       }
       
-      let csv = 'Genesys Cloud Concurrency Report - London Region\n';
+      let csv = 'Genesys Cloud Concurrency Report - London Region (Business Hours)\n';
       csv += `Generated: ${new Date().toLocaleString()}\n`;
       csv += `Environment: London (euw2.pure.cloud)\n`;
       csv += `Period: ${el.dateFrom.value} to ${el.dateTo.value}\n`;
       csv += `Granularity: ${appState.currentGranularity}\n`;
+      csv += `Business Hours: 8am-8pm UTC, Weekdays only\n`;
+      csv += `Max Session: 2 hours (if no logout)\n`;
       csv += `Alert Threshold: ${appState.threshold} concurrent users\n`;
       csv += `Total Users Analysed: ${appState.stats.totalUsers}\n`;
       csv += `Peak Concurrency: ${appState.stats.peakConcurrency}\n`;
@@ -1284,7 +1330,7 @@
         csv += `${item.interval},${item.concurrent},${percentage}%,Above Threshold\n`;
       });
       
-      csv += '\nALL INTERVALS\n';
+      csv += '\nALL INTERVALS (Business Hours Only)\n';
       csv += 'Interval,Concurrent Users\n';
       appState.concurrencyData.forEach(item => { 
         csv += `${item.interval},${item.concurrent}\n`; 
@@ -1295,9 +1341,9 @@
       const a = document.createElement('a');
       const dateStr = new Date().toISOString().split('T')[0];
       a.href = url;
-      a.download = `genesys_concurrency_london_report_${dateStr}.csv`;
+      a.download = `genesys_concurrency_london_business_hours_${dateStr}.csv`;
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-      showStatusMessage('✅ London report exported successfully', 'success');
+      showStatusMessage('✅ London report exported successfully (business hours only)', 'success');
     }
 
     function resetApplication() {
