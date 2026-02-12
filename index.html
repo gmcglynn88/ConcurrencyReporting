@@ -422,7 +422,29 @@
       font-size:13px;
       color:var(--text-light);
     }
+
+    .no-chart-fallback {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      background: var(--light-bg);
+      border-radius: 8px;
+      color: var(--text-light);
+      font-size: 14px;
+      text-align: center;
+      padding: 20px;
+    }
   </style>
+  <!-- Load Chart.js from local fallback if CDN fails -->
+  <script>
+    window.chartJsLoaded = false;
+    window.chartJsFailed = false;
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js" 
+          onload="window.chartJsLoaded = true" 
+          onerror="window.chartJsFailed = true">
+  </script>
 </head>
 <body>
   <div id="authContainer" style="display:block;">
@@ -593,7 +615,7 @@
                 Alert threshold: <span id="thresholdValue" style="color:var(--danger);">20</span> users
               </span>
             </div>
-            <div class="chart-container">
+            <div class="chart-container" id="chartContainer">
               <canvas id="concurrencyChart"></canvas>
             </div>
           </div>
@@ -670,7 +692,6 @@
 
   <div class="status-container" id="statusContainer"></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
   <script>
     // ==================== CONFIGURATION ====================
     const CLIENT_ID = 'fe305808-b368-4547-8af9-325d28d552bb';
@@ -717,7 +738,8 @@
       currentGranularity: 'PT60M',
       threshold: 20,
       chart: null,
-      logs: []
+      logs: [],
+      chartJsAvailable: false
     };
 
     // ==================== DOM ELEMENTS ====================
@@ -761,7 +783,9 @@
       statusContainer: document.getElementById('statusContainer'),
       authSpinner: document.getElementById('authSpinner'),
       authMessage: document.getElementById('authMessage'),
-      authStatus: document.getElementById('authStatus')
+      authStatus: document.getElementById('authStatus'),
+      chartContainer: document.getElementById('chartContainer'),
+      concurrencyChart: document.getElementById('concurrencyChart')
     };
 
     // ==================== UTILITIES ====================
@@ -881,6 +905,10 @@
             };
             appState.isConnected = true;
             return true;
+          } else {
+            // Token expired, clear it
+            localStorage.removeItem(STORAGE_KEYS.TOKEN);
+            localStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRY);
           }
         }
       } catch (e) {
@@ -945,6 +973,15 @@
     }
 
     function initAuth() {
+      // Check if Chart.js loaded
+      setTimeout(() => {
+        appState.chartJsAvailable = window.Chart !== undefined;
+        if (!appState.chartJsAvailable) {
+          console.warn('Chart.js failed to load - chart functionality will be disabled');
+          showStatusMessage('Chart library failed to load - using text-only display', 'warn');
+        }
+      }, 1000);
+
       // First check URL hash for token
       const { token, error, errorDescription, expiresIn } = parseTokenFromHash();
       
@@ -955,7 +992,8 @@
 
       if (token) {
         // Token found in URL - save it and authenticate
-        el.authStatus.textContent = 'Token found in URL, authenticating...';
+        if (el.authStatus) el.authStatus.textContent = 'Token found in URL, authenticating...';
+        if (el.authMessage) el.authMessage.textContent = 'Authentication successful! Loading application...';
         saveCredentials(token, expiresIn || '3600');
         logMessage('SUCCESS', 'Authentication successful', 'Connected to Dublin');
         showMainApp();
@@ -964,30 +1002,31 @@
 
       if (error) {
         // Error in URL - show manual button
-        el.authStatus.textContent = `Authentication failed: ${error}`;
-        el.authMessage.textContent = `❌ Authentication failed: ${errorDescription || error}`;
-        el.authSpinner.style.display = 'none';
-        el.btnAuthenticate.style.display = 'block';
+        if (el.authStatus) el.authStatus.textContent = `Authentication failed: ${error}`;
+        if (el.authMessage) el.authMessage.textContent = `❌ Authentication failed: ${errorDescription || error}`;
+        if (el.authSpinner) el.authSpinner.style.display = 'none';
+        if (el.btnAuthenticate) el.btnAuthenticate.style.display = 'block';
         logMessage('ERROR', 'Authentication failed', `${error}: ${errorDescription || ''}`);
         return;
       }
 
       // No token in URL - check stored credentials
-      el.authStatus.textContent = 'Checking stored credentials...';
+      if (el.authStatus) el.authStatus.textContent = 'Checking stored credentials...';
       
       if (loadStoredCredentials()) {
         // Valid stored token exists
-        el.authStatus.textContent = 'Stored token found, authenticating...';
+        if (el.authStatus) el.authStatus.textContent = 'Stored token found, authenticating...';
+        if (el.authMessage) el.authMessage.textContent = 'Using stored credentials...';
         logMessage('SUCCESS', 'Auto-authentication successful', 'Using stored credentials');
         showMainApp();
         return;
       }
 
       // No valid token - show manual button
-      el.authStatus.textContent = 'No valid token found - please authenticate';
-      el.authMessage.textContent = 'Please click the button below to authenticate with Genesys Cloud';
-      el.authSpinner.style.display = 'none';
-      el.btnAuthenticate.style.display = 'block';
+      if (el.authStatus) el.authStatus.textContent = 'No valid token found - please authenticate';
+      if (el.authMessage) el.authMessage.textContent = 'Please click the button below to authenticate with Genesys Cloud';
+      if (el.authSpinner) el.authSpinner.style.display = 'none';
+      if (el.btnAuthenticate) el.btnAuthenticate.style.display = 'block';
       logMessage('INFO', 'Authentication required', 'No valid token found');
     }
 
@@ -1008,10 +1047,10 @@
       el.authContainer.style.display = 'block';
       
       // Reset auth container
-      el.authSpinner.style.display = 'block';
-      el.btnAuthenticate.style.display = 'none';
-      el.authMessage.textContent = 'Attempting automatic authentication...';
-      el.authStatus.textContent = 'Checking for existing token...';
+      if (el.authSpinner) el.authSpinner.style.display = 'block';
+      if (el.btnAuthenticate) el.btnAuthenticate.style.display = 'none';
+      if (el.authMessage) el.authMessage.textContent = 'Attempting automatic authentication...';
+      if (el.authStatus) el.authStatus.textContent = 'Checking for existing token...';
       
       logMessage('INFO', 'Disconnected from Genesys Cloud');
       
@@ -1043,6 +1082,8 @@
       }
 
       if (Date.now() > CURRENT_CONFIG.tokenExpiry) {
+        // Token expired, try to clear and reconnect
+        clearCredentials();
         throw new Error('Token expired. Please reconnect.');
       }
 
@@ -1058,6 +1099,7 @@
 
       if (response.status === 401) {
         appState.isConnected = false;
+        clearCredentials();
         throw new Error('Authentication expired. Please reconnect.');
       }
       
@@ -1193,9 +1235,9 @@
                   const presenceData = result.data.find(d => d.metric === 'tSystemPresence');
                   
                   if (presenceData && presenceData.stats && presenceData.stats.count > 0) {
-                    // User was present in this interval
-                    // For demo purposes, we'll mark the user as present for the first X intervals
-                    // In production with proper time series data, this would be more accurate
+                    // User was present - mark them as logged in
+                    // For each interval where they were present, add to the set
+                    // This is simplified - in production you'd want the actual time series
                     const presenceCount = Math.min(presenceData.stats.count || 0, intervals.length);
                     
                     for (let j = 0; j < presenceCount; j++) {
@@ -1377,14 +1419,17 @@
       else if (appState.currentGranularity === 'P1D') granularityText = 'daily';
       
       el.granularityLabel.textContent = `${granularityText} intervals`;
-      el.granularityLabel.style.background = 'var(--pill)';
-      el.granularityLabel.style.padding = '8px 16px';
-      el.granularityLabel.style.borderRadius = '20px';
     }
 
     function renderConcurrencyChart() {
-      const ctx = document.getElementById('concurrencyChart').getContext('2d');
-      
+      if (!appState.chartJsAvailable || !window.Chart) {
+        // Show fallback message
+        el.chartContainer.innerHTML = '<div class="no-chart-fallback">📊 Chart library unavailable - showing text data only<br><span style="font-size:12px;margin-top:10px;">See tables below for concurrency data</span></div>';
+        return;
+      }
+
+      if (!el.concurrencyChart) return;
+
       if (appState.chart) {
         appState.chart.destroy();
       }
@@ -1404,85 +1449,90 @@
       const data = displayData.map(item => item.concurrent);
       const threshold = appState.threshold;
 
-      appState.chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: labels,
-          datasets: [
-            {
-              label: 'Concurrent Logged-in Users',
-              data: data,
-              borderColor: '#63AB8F',
-              backgroundColor: 'rgba(99, 171, 143, 0.1)',
-              borderWidth: 2,
-              pointRadius: 3,
-              pointHoverRadius: 6,
-              pointBackgroundColor: '#63AB8F',
-              pointBorderColor: '#fff',
-              tension: 0.1,
-              fill: true
-            },
-            {
-              label: 'Alert Threshold',
-              data: Array(data.length).fill(threshold),
-              borderColor: '#dc3545',
-              borderWidth: 2,
-              borderDash: [5, 5],
-              pointRadius: 0,
-              fill: false
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: {
-            intersect: false,
-            mode: 'index'
-          },
-          plugins: {
-            tooltip: {
-              callbacks: {
-                afterBody: function(context) {
-                  const idx = context[0].dataIndex;
-                  const item = displayData[idx];
-                  if (item.concurrent > threshold) {
-                    return '⚠️ Exceeds threshold!';
-                  }
-                  return '';
-                }
-              }
-            },
-            legend: {
-              position: 'top',
-              labels: { 
-                usePointStyle: true,
-                font: {
-                  family: "'Aptos', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif",
-                  size: 12
-                }
-              }
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              title: {
-                display: true,
-                text: 'Concurrent Users'
+      try {
+        appState.chart = new Chart(el.concurrencyChart, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: 'Concurrent Logged-in Users',
+                data: data,
+                borderColor: '#63AB8F',
+                backgroundColor: 'rgba(99, 171, 143, 0.1)',
+                borderWidth: 2,
+                pointRadius: 3,
+                pointHoverRadius: 6,
+                pointBackgroundColor: '#63AB8F',
+                pointBorderColor: '#fff',
+                tension: 0.1,
+                fill: true
               },
-              grid: {
-                color: 'rgba(0,0,0,0.05)'
+              {
+                label: 'Alert Threshold',
+                data: Array(data.length).fill(threshold),
+                borderColor: '#dc3545',
+                borderWidth: 2,
+                borderDash: [5, 5],
+                pointRadius: 0,
+                fill: false
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+              intersect: false,
+              mode: 'index'
+            },
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  afterBody: function(context) {
+                    const idx = context[0].dataIndex;
+                    const item = displayData[idx];
+                    if (item.concurrent > threshold) {
+                      return '⚠️ Exceeds threshold!';
+                    }
+                    return '';
+                  }
+                }
+              },
+              legend: {
+                position: 'top',
+                labels: { 
+                  usePointStyle: true,
+                  font: {
+                    family: "'Aptos', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif",
+                    size: 12
+                  }
+                }
               }
             },
-            x: {
-              grid: {
-                display: false
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: {
+                  display: true,
+                  text: 'Concurrent Users'
+                },
+                grid: {
+                  color: 'rgba(0,0,0,0.05)'
+                }
+              },
+              x: {
+                grid: {
+                  display: false
+                }
               }
             }
           }
-        }
-      });
+        });
+      } catch (e) {
+        console.error('Failed to render chart:', e);
+        el.chartContainer.innerHTML = '<div class="no-chart-fallback">📊 Failed to render chart - showing text data only</div>';
+      }
     }
 
     function renderPeakTable() {
@@ -1655,6 +1705,12 @@
           appState.chart = null;
         }
         
+        // Restore chart container if it was replaced
+        if (!el.concurrencyChart || !document.body.contains(el.concurrencyChart)) {
+          el.chartContainer.innerHTML = '<canvas id="concurrencyChart"></canvas>';
+          el.concurrencyChart = document.getElementById('concurrencyChart');
+        }
+        
         renderPeakTable();
         renderIntervalsTable();
         
@@ -1668,8 +1724,8 @@
       // Set max date to today
       const today = new Date();
       const todayStr = today.toISOString().split('T')[0];
-      el.dateTo.max = todayStr;
-      el.dateFrom.max = todayStr;
+      if (el.dateTo) el.dateTo.max = todayStr;
+      if (el.dateFrom) el.dateFrom.max = todayStr;
       
       // Load stored preferences
       const storedFrom = localStorage.getItem(STORAGE_KEYS.DATE_FROM);
@@ -1677,13 +1733,13 @@
       const storedGranularity = localStorage.getItem(STORAGE_KEYS.GRANULARITY);
       const storedThreshold = localStorage.getItem(STORAGE_KEYS.THRESHOLD);
       
-      if (storedFrom && storedTo) {
+      if (storedFrom && storedTo && el.dateFrom && el.dateTo) {
         el.dateFrom.value = storedFrom;
         el.dateTo.value = storedTo;
       } else {
         const last7Days = getLast7Days();
-        el.dateFrom.value = last7Days.from;
-        el.dateTo.value = last7Days.to;
+        if (el.dateFrom) el.dateFrom.value = last7Days.from;
+        if (el.dateTo) el.dateTo.value = last7Days.to;
       }
       
       if (storedGranularity) {
@@ -1693,33 +1749,40 @@
         });
       }
       
-      if (storedThreshold) {
+      if (storedThreshold && el.thresholdConcurrency) {
         appState.threshold = parseInt(storedThreshold);
         el.thresholdConcurrency.value = storedThreshold;
+        if (el.thresholdValue) el.thresholdValue.textContent = storedThreshold;
       }
 
       // Save dates when changed
-      el.dateFrom.addEventListener('change', () => {
-        localStorage.setItem(STORAGE_KEYS.DATE_FROM, el.dateFrom.value);
-        updateDateRangeInfo();
-      });
-      el.dateTo.addEventListener('change', () => {
-        localStorage.setItem(STORAGE_KEYS.DATE_TO, el.dateTo.value);
-        updateDateRangeInfo();
-      });
+      if (el.dateFrom) {
+        el.dateFrom.addEventListener('change', () => {
+          localStorage.setItem(STORAGE_KEYS.DATE_FROM, el.dateFrom.value);
+          updateDateRangeInfo();
+        });
+      }
+      if (el.dateTo) {
+        el.dateTo.addEventListener('change', () => {
+          localStorage.setItem(STORAGE_KEYS.DATE_TO, el.dateTo.value);
+          updateDateRangeInfo();
+        });
+      }
       
       updateDateRangeInfo();
 
       // Event listeners
-      el.btnAuthenticate.addEventListener('click', () => {
-        window.location.href = authUrl();
-      });
+      if (el.btnAuthenticate) {
+        el.btnAuthenticate.addEventListener('click', () => {
+          window.location.href = authUrl();
+        });
+      }
 
-      el.btnDisconnect.addEventListener('click', disconnect);
-      el.btnFetchUsers.addEventListener('click', fetchUsers);
-      el.btnFetchConcurrency.addEventListener('click', fetchConcurrency);
-      el.btnExport.addEventListener('click', exportReport);
-      el.btnReset.addEventListener('click', resetApplication);
+      if (el.btnDisconnect) el.btnDisconnect.addEventListener('click', disconnect);
+      if (el.btnFetchUsers) el.btnFetchUsers.addEventListener('click', fetchUsers);
+      if (el.btnFetchConcurrency) el.btnFetchConcurrency.addEventListener('click', fetchConcurrency);
+      if (el.btnExport) el.btnExport.addEventListener('click', exportReport);
+      if (el.btnReset) el.btnReset.addEventListener('click', resetApplication);
 
       // Granularity selector
       el.granularityOptions.forEach(opt => {
@@ -1736,16 +1799,18 @@
       });
 
       // Threshold change
-      el.thresholdConcurrency.addEventListener('change', function() {
-        appState.threshold = parseInt(this.value) || 20;
-        localStorage.setItem(STORAGE_KEYS.THRESHOLD, appState.threshold);
-        el.thresholdValue.textContent = appState.threshold;
-        
-        if (appState.concurrencyData.length > 0) {
-          renderConcurrencyChart();
-          renderPeakTable();
-        }
-      });
+      if (el.thresholdConcurrency) {
+        el.thresholdConcurrency.addEventListener('change', function() {
+          appState.threshold = parseInt(this.value) || 20;
+          localStorage.setItem(STORAGE_KEYS.THRESHOLD, appState.threshold);
+          if (el.thresholdValue) el.thresholdValue.textContent = appState.threshold;
+          
+          if (appState.concurrencyData.length > 0) {
+            renderConcurrencyChart();
+            renderPeakTable();
+          }
+        });
+      }
 
       // Search
       if (el.searchInterval) {
