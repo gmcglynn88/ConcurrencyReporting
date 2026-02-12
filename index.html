@@ -584,7 +584,7 @@
                   </div>
                   <ul style="list-style-type:none;padding-left:0;">
                     <li style="margin-bottom:8px;">✓ Fetches all active users from your org</li>
-                    <li style="margin-bottom:8px;">✓ Queries presence aggregates for each interval</li>
+                    <li style="margin-bottom:8px;">✓ Queries presence history for each user</li>
                     <li style="margin-bottom:8px;">✓ Calculates concurrent logged-in users</li>
                     <li style="margin-bottom:8px;">✓ Identifies peak usage times automatically</li>
                     <li>✓ No interacting hours - pure concurrency analysis</li>
@@ -839,7 +839,7 @@
       concurrencyChart: document.getElementById('concurrencyChart')
     };
 
-    // ==================== AUTHENTICATION - EXACT PATTERN FROM WORKING APP ====================
+    // ==================== AUTHENTICATION ====================
     function parseTokenFromHash() {
       const hash = window.location.hash.replace(/^#/, '');
       if (!hash) return {};
@@ -887,7 +887,6 @@
             appState.environment = ENVIRONMENTS['eu-west-1'];
             return true;
           } else {
-            // Token expired, clear it
             localStorage.removeItem(STORAGE_KEYS.TOKEN);
             localStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRY);
             localStorage.removeItem(STORAGE_KEYS.ENVIRONMENT);
@@ -926,10 +925,8 @@
     function initAuth() {
       console.log("Initializing authentication...");
       
-      // First check URL hash for token (from OAuth redirect)
       const { token, error, errorDescription, expiresIn } = parseTokenFromHash();
       
-      // Clear the hash if it exists
       if (window.location.hash) {
         history.replaceState(null, '', window.location.pathname + window.location.search);
       }
@@ -947,7 +944,6 @@
         showStatusMessage(`❌ Authentication failed: ${errorDescription || error}`, 'error');
       }
 
-      // Check for stored credentials
       if (loadStoredCredentials()) {
         console.log("Stored credentials found, authenticating...");
         updateConnectionStatus(true);
@@ -955,7 +951,6 @@
         return;
       }
 
-      // No valid token - redirect to authenticate
       console.log("No valid token found, redirecting to auth...");
       window.location.href = authUrl();
     }
@@ -995,7 +990,6 @@
     function updateConnectionStatus(connected) {
       appState.isConnected = connected;
       
-      // Update main status
       if (el.statusIndicator) {
         el.statusIndicator.style.background = connected ? 'var(--success)' : 'var(--danger)';
       }
@@ -1004,7 +998,6 @@
         el.statusText.style.color = connected ? 'var(--success)' : 'var(--danger)';
       }
       
-      // Update settings status
       if (el.settingsStatusIndicator) {
         el.settingsStatusIndicator.style.background = connected ? 'var(--success)' : 'var(--danger)';
       }
@@ -1013,7 +1006,6 @@
         el.settingsStatusText.style.color = connected ? 'var(--success)' : 'var(--danger)';
       }
       
-      // Enable/disable buttons
       if (el.btnFetchUsers) {
         el.btnFetchUsers.disabled = !connected;
       }
@@ -1116,6 +1108,17 @@
       return response.json();
     }
 
+    // ==================== HELPER: Check if two intervals overlap ====================
+    function intervalsOverlap(interval1, interval2) {
+      try {
+        const [start1, end1] = interval1.split('/').map(d => new Date(d));
+        const [start2, end2] = interval2.split('/').map(d => new Date(d));
+        return start1 < end2 && start2 < end1;
+      } catch (e) {
+        return false;
+      }
+    }
+
     // ==================== FETCH USERS ====================
     async function fetchUsers() {
       if (!appState.isConnected) {
@@ -1159,14 +1162,14 @@
       }
     }
 
-    // ==================== FETCH CONCURRENCY ====================
+    // ==================== FETCH CONCURRENCY - FIXED WITH CORRECT PRESENCE QUERY ====================
     async function fetchConcurrency() {
       if (!appState.users.length) {
         showStatusMessage('Please fetch users first', 'error');
         return;
       }
 
-      setLoading(true, 'Analysing Concurrency', 'Querying presence data for each time interval...');
+      setLoading(true, 'Analysing Concurrency', 'Querying presence history for each user...');
       updateLoadingProgress(5);
 
       try {
@@ -1185,7 +1188,7 @@
         const batchSize = 25;
         const concurrencyMap = new Map();
         
-        // Generate all possible intervals
+        // Generate all possible intervals based on granularity
         const intervals = generateIntervals(dateFrom, dateTo, granularity);
         intervals.forEach(interval => {
           concurrencyMap.set(interval, new Set());
@@ -1193,7 +1196,7 @@
 
         updateLoadingProgress(20);
         
-        // Process users in batches
+        // Process users in batches using the CORRECT presence query endpoint
         for (let i = 0; i < userIds.length; i += batchSize) {
           const batch = userIds.slice(i, i + batchSize);
           const progress = 20 + ((i / userIds.length) * 70);
@@ -1201,53 +1204,59 @@
           
           el.loadingSubtext.innerHTML = `Processing batch ${Math.floor(i/batchSize)+1} of ${Math.ceil(userIds.length/batchSize)}...`;
 
+          // CORRECT API: /api/v2/users/presence/query
           const queryBody = {
             interval: interval,
-            granularity: granularity,
-            groupBy: ['userId'],
-            metrics: ['tSystemPresence'],
             filter: {
               type: 'or',
               predicates: batch.map(userId => ({
-                value: userId,
-                operator: 'matches',
-                dimension: 'userId'
+                type: 'userId',
+                value: userId
               }))
             }
           };
 
           try {
-            const response = await apiCall('/api/v2/analytics/users/aggregates/query', {
+            const response = await apiCall('/api/v2/users/presence/query', {
               method: 'POST',
               body: JSON.stringify(queryBody)
             });
 
             if (response.results) {
               response.results.forEach(result => {
-                if (result.group && result.group.userId) {
-                  const userId = result.group.userId;
-                  const presenceData = result.data.find(d => d.metric === 'tSystemPresence');
+                if (result.userId) {
+                  const userId = result.userId;
                   
-                  if (presenceData && presenceData.stats && presenceData.stats.count > 0) {
-                    const presenceCount = Math.min(presenceData.stats.count || 0, intervals.length);
-                    
-                    for (let j = 0; j < presenceCount; j++) {
-                      if (j < intervals.length) {
-                        const intervalKey = intervals[j];
-                        const userSet = concurrencyMap.get(intervalKey);
-                        if (userSet) {
-                          userSet.add(userId);
+                  // Check presence definitions - 'Available' means logged in
+                  if (result.presenceDefinitions && Array.isArray(result.presenceDefinitions)) {
+                    result.presenceDefinitions.forEach(pd => {
+                      // 'Available' system presence indicates user was logged in
+                      if (pd.systemPresence === 'Available') {
+                        if (pd.intervals && Array.isArray(pd.intervals)) {
+                          pd.intervals.forEach(presenceInterval => {
+                            // Map this presence interval to our granular intervals
+                            intervals.forEach(granularInterval => {
+                              if (intervalsOverlap(presenceInterval, granularInterval)) {
+                                const userSet = concurrencyMap.get(granularInterval);
+                                if (userSet) {
+                                  userSet.add(userId);
+                                }
+                              }
+                            });
+                          });
                         }
                       }
-                    }
+                    });
                   }
                 }
               });
             }
           } catch (batchError) {
-            console.warn(`Batch query failed for users ${i}-${i+batchSize}`, batchError);
+            console.warn(`Presence query failed for batch ${i}-${i+batchSize}:`, batchError);
+            showStatusMessage(`⚠️ Batch ${Math.floor(i/batchSize)+1} failed - continuing with partial data`, 'warn');
           }
 
+          // Rate limiting - 150ms between batches
           await new Promise(resolve => setTimeout(resolve, 150));
         }
 
@@ -1296,11 +1305,12 @@
         updateLoadingProgress(100);
         setTimeout(() => setLoading(false), 500);
         
-        showStatusMessage(`✅ Concurrency analysis complete - Peak: ${peakConcurrency} users`, 'success');
+        showStatusMessage(`✅ Concurrency analysis complete - Peak: ${peakConcurrency} concurrent users`, 'success');
         
       } catch (error) {
         setLoading(false);
         showStatusMessage(`❌ Failed to analyse concurrency: ${error.message}`, 'error');
+        console.error('Concurrency error:', error);
       }
     }
 
@@ -1343,7 +1353,6 @@
       el.peakTimeOverall.textContent = formatHourFromInterval(peak.interval);
       el.peakConcurrencyOverall.textContent = `${peak.concurrent} concurrent users`;
       
-      // Peak day
       const dayMap = new Map();
       appState.concurrencyData.forEach(item => {
         const day = formatDateFromInterval(item.interval);
@@ -1364,7 +1373,6 @@
       el.peakDay.textContent = peakDay || '--/--/----';
       el.peakDayConcurrency.textContent = `${peakDayValue} concurrent users`;
       
-      // Peak hour
       const hourMap = new Map();
       appState.concurrencyData.forEach(item => {
         const hour = formatHourFromInterval(item.interval);
@@ -1681,17 +1689,12 @@
     function initializeApp() {
       console.log("Initializing app...");
       
-      // Set default dates
-      const today = new Date();
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(today.getDate() - 7);
-      
-      if (el.dateFrom) el.dateFrom.value = sevenDaysAgo.toISOString().split('T')[0];
-      if (el.dateTo) el.dateTo.value = today.toISOString().split('T')[0];
+      const last7Days = getLast7Days();
+      if (el.dateFrom) el.dateFrom.value = last7Days.from;
+      if (el.dateTo) el.dateTo.value = last7Days.to;
       
       updateDateRangeInfo();
 
-      // Event listeners
       document.addEventListener('click', (e) => {
         const btn = e.target.closest('.tablinks');
         if (!btn) return;
@@ -1725,7 +1728,6 @@
         el.btnReset.addEventListener('click', resetApplication);
       }
 
-      // Granularity selector
       if (el.granularityOptions) {
         el.granularityOptions.forEach(opt => {
           opt.addEventListener('click', function() {
@@ -1741,7 +1743,6 @@
         });
       }
 
-      // Threshold change
       if (el.thresholdConcurrency) {
         el.thresholdConcurrency.addEventListener('change', function() {
           appState.threshold = parseInt(this.value) || 20;
@@ -1755,12 +1756,10 @@
         });
       }
 
-      // Search
       if (el.searchInterval) {
         el.searchInterval.addEventListener('input', renderIntervalsTable);
       }
 
-      // Date change handlers
       if (el.dateFrom) {
         el.dateFrom.addEventListener('change', function() {
           localStorage.setItem(STORAGE_KEYS.DATE_FROM, el.dateFrom.value);
@@ -1775,14 +1774,10 @@
         });
       }
 
-      // Open default tab
       openTabById('Concurrency');
-      
-      showStatusMessage('Ready - Authenticated with Genesys Cloud', 'success');
     }
 
     // ==================== START ====================
-    // This is the exact pattern from your working app - immediate auth on page load
     window.onload = function() {
       console.log("Page loaded, initializing...");
       initAuth();
