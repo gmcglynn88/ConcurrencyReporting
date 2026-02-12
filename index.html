@@ -317,7 +317,7 @@
                   <li style="margin-bottom:8px;">✓ Queries presence history via User Details API</li>
                   <li style="margin-bottom:8px;">✓ Splits long date ranges into 7-day windows</li>
                   <li style="margin-bottom:8px;">✓ Calculates concurrent logged-in users with time-weighted accuracy</li>
-                  <li style="margin-bottom:8px;">✓ Identifies peak usage times by actual hour</li>
+                  <li style="margin-bottom:8px;">✓ **4-hour session cap** prevents overnight counting</li>
                   <li>✓ Pure concurrency analysis - no interacting hours</li>
                 </ul>
               </div>
@@ -462,8 +462,6 @@
   <script>
     // ==================== LONDON REGION CONFIGURATION ====================
     const CLIENT_ID = 'd968eca4-cdb7-4b90-91b1-4628b5bb679e';
-    
-    // ⚠️ IMPORTANT: This EXACT URI must be registered in your Genesys Cloud OAuth client
     const REDIRECT_URI = window.location.href.split('#')[0];
     
     const ENVIRONMENTS = {
@@ -545,7 +543,6 @@
       currentRedirectUri: document.getElementById('currentRedirectUri')
     };
 
-    // Display the current redirect URI in the UI
     if (el.currentRedirectUri) {
       el.currentRedirectUri.textContent = REDIRECT_URI;
     }
@@ -633,9 +630,6 @@
 
     function initAuth() {
       console.log("Initializing London region authentication...");
-      console.log("Current URL:", window.location.href);
-      console.log("Redirect URI configured as:", REDIRECT_URI);
-      
       const { token, error, errorDescription, expiresIn } = parseTokenFromHash();
       
       if (window.location.hash) {
@@ -643,7 +637,6 @@
       }
       
       if (token) {
-        console.log("Token found in URL, authenticating...");
         saveCredentials(token, expiresIn || '3600');
         updateConnectionStatus(true);
         showStatusMessage('✅ Authentication successful - London Region', 'success');
@@ -651,30 +644,23 @@
       }
       
       if (error) {
-        console.log("Auth error:", error, errorDescription);
-        showStatusMessage(`❌ Authentication failed: ${errorDescription || error}. Please ensure the OAuth client is configured with redirect URI: ${REDIRECT_URI}`, 'error');
+        showStatusMessage(`❌ Authentication failed: ${errorDescription || error}`, 'error');
       }
       
       if (loadStoredCredentials()) {
-        console.log("Stored credentials found, authenticating...");
         updateConnectionStatus(true);
         showStatusMessage('✅ Authenticated with stored credentials - London Region', 'success');
         return;
       }
       
       if (!token && !error && !loadStoredCredentials()) {
-        console.log("No valid token found, redirecting to London auth...");
-        const url = authUrl();
-        console.log("Redirecting to:", url);
-        window.location.href = url;
+        window.location.href = authUrl();
       }
     }
 
     function manualAuth() {
       clearCredentials();
-      const url = authUrl();
-      console.log("Manual auth redirect:", url);
-      window.location.href = url;
+      window.location.href = authUrl();
     }
 
     // ==================== UTILITIES ====================
@@ -741,7 +727,6 @@
     function formatHourFromInterval(intervalStr) {
       try {
         const start = new Date(intervalStr.split('/')[0]);
-        // Use UTC to avoid timezone shifts
         return start.toISOString().substring(11, 16);
       } catch (e) {
         return '--:--';
@@ -845,7 +830,7 @@
       }
     }
 
-    // ==================== FIXED: INTERVAL OVERLAP WITH DURATION CALCULATION ====================
+    // ==================== INTERVAL OVERLAP WITH DURATION ====================
     function calculateOverlapDuration(interval1, interval2) {
       try {
         const [start1, end1] = interval1.split('/').map(d => new Date(d));
@@ -855,7 +840,6 @@
         const overlapEnd = new Date(Math.min(end1, end2));
         
         if (overlapStart < overlapEnd) {
-          // Return overlap duration in minutes
           return (overlapEnd - overlapStart) / (1000 * 60);
         }
         return 0;
@@ -887,7 +871,7 @@
       return intervals;
     }
 
-    // ==================== FIXED: FETCH CONCURRENCY WITH TIME-WEIGHTED ACCURACY ====================
+    // ==================== FETCH CONCURRENCY - WITH 4-HOUR SESSION CAP ====================
     async function fetchConcurrency() {
       if (!appState.users.length) {
         showStatusMessage('Please fetch users first', 'error');
@@ -930,10 +914,10 @@
         // Generate target granular intervals for the whole period
         const allGranularIntervals = generateIntervals(dateFrom, dateTo, granularity);
         
-        // Use a Map of Maps to store presence minutes per user per interval
+        // Map to store presence minutes per user per interval
         const concurrencyMinutesMap = new Map();
         allGranularIntervals.forEach(interval => {
-          concurrencyMinutesMap.set(interval, new Map()); // userId -> total minutes present
+          concurrencyMinutesMap.set(interval, new Map());
         });
 
         updateLoadingProgress(10);
@@ -944,7 +928,6 @@
           const windowInterval = intervals7Day[w];
           el.loadingSubtext.innerHTML = `Processing window ${w+1}/${intervals7Day.length}: ${windowInterval}`;
           
-          // Process users in batches
           for (let i = 0; i < userIds.length; i += batchSize) {
             const batch = userIds.slice(i, i + batchSize);
             const overallProgress = 10 + ((w / intervals7Day.length) * 80) + ((i / userIds.length) * (80 / intervals7Day.length));
@@ -977,13 +960,21 @@
                   const userId = userDetail.userId;
                   if (userDetail.primaryPresence) {
                     userDetail.primaryPresence.forEach(presenceEvent => {
-                      // User is considered logged-in if they have any presence state other than 'Offline'
+                      // ONLY count if presence is NOT Offline
                       if (presenceEvent.systemPresence !== 'Offline' && presenceEvent.systemPresence !== null) {
-                        const presenceStart = presenceEvent.startTime;
-                        const presenceEnd = presenceEvent.endTime || windowInterval.split('/')[1];
-                        const presenceInterval = `${presenceStart}/${presenceEnd}`;
                         
-                        // Calculate overlap duration for each granular interval
+                        // CRITICAL FIX: Cap sessions at 4 hours if no end time
+                        // This prevents users who never logout from skewing overnight data
+                        let presenceEnd = presenceEvent.endTime;
+                        
+                        if (!presenceEnd) {
+                          const start = new Date(presenceEvent.startTime);
+                          const fourHoursLater = new Date(start.getTime() + (4 * 60 * 60 * 1000));
+                          presenceEnd = fourHoursLater.toISOString();
+                        }
+                        
+                        const presenceInterval = `${presenceEvent.startTime}/${presenceEnd}`;
+                        
                         allGranularIntervals.forEach(granularInterval => {
                           const overlapMinutes = calculateOverlapDuration(presenceInterval, granularInterval);
                           if (overlapMinutes > 0) {
@@ -1009,8 +1000,6 @@
         updateLoadingProgress(95);
 
         // Convert minutes map to concurrency counts
-        // A user is counted as concurrent if they were present for ANY time in the interval
-        // This fixes the flat line issue while still being accurate
         const concurrencyData = [];
         let peakConcurrency = 0;
         let totalConcurrency = 0;
@@ -1055,16 +1044,14 @@
       }
     }
 
-    // ==================== FIXED: CALCULATE PEAK TIMES ====================
+    // ==================== CALCULATE PEAK TIMES ====================
     function calculatePeakTimes() {
       if (appState.concurrencyData.length === 0) return;
       
-      // Find overall peak interval
       const peak = appState.concurrencyData.reduce((max, curr) => curr.concurrent > max.concurrent ? curr : max);
       appState.stats.peakInterval = peak.interval;
       appState.stats.peakConcurrency = peak.concurrent;
       
-      // Format peak time correctly
       const peakDate = new Date(peak.interval.split('/')[0]);
       el.peakTimeOverall.textContent = peakDate.toLocaleString('en-GB', { 
         hour: '2-digit', 
@@ -1074,7 +1061,6 @@
       });
       el.peakConcurrencyOverall.textContent = `${peak.concurrent} concurrent users`;
       
-      // Calculate peak day
       const dayMap = new Map();
       appState.concurrencyData.forEach(item => {
         const day = formatDateFromInterval(item.interval);
@@ -1094,7 +1080,6 @@
       el.peakDay.textContent = peakDay || '--/--/----';
       el.peakDayConcurrency.textContent = `${peakDayValue} concurrent users`;
       
-      // Calculate busiest hour - only for granularities less than daily
       if (appState.currentGranularity !== 'P1D') {
         const hourMap = new Map();
         appState.concurrencyData.forEach(item => {
@@ -1126,6 +1111,7 @@
       el.statAvgConcurrency.textContent = appState.stats.avgConcurrency;
       el.statTotalIntervals.textContent = appState.stats.totalIntervals;
       el.thresholdValue.textContent = appState.threshold;
+      
       let granularityText = '1-hour';
       if (appState.currentGranularity === 'PT15M') granularityText = '15-minute';
       else if (appState.currentGranularity === 'PT30M') granularityText = '30-minute';
