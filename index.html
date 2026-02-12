@@ -316,8 +316,8 @@
                   <li style="margin-bottom:8px;">✓ Fetches all active users</li>
                   <li style="margin-bottom:8px;">✓ Queries presence history via User Details API</li>
                   <li style="margin-bottom:8px;">✓ Splits long date ranges into 7-day windows</li>
-                  <li style="margin-bottom:8px;">✓ Calculates concurrent logged-in users</li>
-                  <li style="margin-bottom:8px;">✓ Identifies peak usage times automatically</li>
+                  <li style="margin-bottom:8px;">✓ Calculates concurrent logged-in users with time-weighted accuracy</li>
+                  <li style="margin-bottom:8px;">✓ Identifies peak usage times by actual hour</li>
                   <li>✓ Pure concurrency analysis - no interacting hours</li>
                 </ul>
               </div>
@@ -373,7 +373,7 @@
                   <span style="font-size:24px;">⏰</span>
                   <h3 style="margin:0;font-size:18px;color:var(--text-color);">Busiest Hour</h3>
                 </div>
-                <div class="peak-time" id="peakHour">--:00</div>
+                <div class="peak-time" id="peakHour">--:--</div>
                 <div style="color:var(--text-light);" id="peakHourConcurrency">0 concurrent users</div>
               </div>
             </div>
@@ -464,7 +464,6 @@
     const CLIENT_ID = 'd968eca4-cdb7-4b90-91b1-4628b5bb679e';
     
     // ⚠️ IMPORTANT: This EXACT URI must be registered in your Genesys Cloud OAuth client
-    // It is set to match the current page URL: https://gmcglynn88.github.io/ConcurrencyReporting/
     const REDIRECT_URI = window.location.href.split('#')[0];
     
     const ENVIRONMENTS = {
@@ -639,7 +638,6 @@
       
       const { token, error, errorDescription, expiresIn } = parseTokenFromHash();
       
-      // Clear the hash to prevent reprocessing on refresh
       if (window.location.hash) {
         history.replaceState(null, '', window.location.pathname + window.location.search);
       }
@@ -664,7 +662,6 @@
         return;
       }
       
-      // Only auto-redirect if we're not already on the page with a hash
       if (!token && !error && !loadStoredCredentials()) {
         console.log("No valid token found, redirecting to London auth...");
         const url = authUrl();
@@ -673,7 +670,6 @@
       }
     }
 
-    // Manual authentication trigger
     function manualAuth() {
       clearCredentials();
       const url = authUrl();
@@ -726,9 +722,16 @@
         const parts = intervalStr.split('/');
         const start = new Date(parts[0]);
         if (granularity === 'P1D') {
-          return start.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+          return start.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
         } else {
-          return start.toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).replace(',', '');
+          return start.toLocaleString('en-GB', { 
+            day: '2-digit', 
+            month: 'short', 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            hour12: false,
+            timeZone: 'UTC' 
+          }).replace(',', '');
         }
       } catch (e) {
         return intervalStr;
@@ -738,7 +741,8 @@
     function formatHourFromInterval(intervalStr) {
       try {
         const start = new Date(intervalStr.split('/')[0]);
-        return start.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+        // Use UTC to avoid timezone shifts
+        return start.toISOString().substring(11, 16);
       } catch (e) {
         return '--:--';
       }
@@ -747,7 +751,7 @@
     function formatDateFromInterval(intervalStr) {
       try {
         const start = new Date(intervalStr.split('/')[0]);
-        return start.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        return start.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
       } catch (e) {
         return '--/--/----';
       }
@@ -841,14 +845,22 @@
       }
     }
 
-    // ==================== INTERVAL OVERLAP HELPER ====================
-    function intervalsOverlap(interval1, interval2) {
+    // ==================== FIXED: INTERVAL OVERLAP WITH DURATION CALCULATION ====================
+    function calculateOverlapDuration(interval1, interval2) {
       try {
         const [start1, end1] = interval1.split('/').map(d => new Date(d));
         const [start2, end2] = interval2.split('/').map(d => new Date(d));
-        return start1 < end2 && start2 < end1;
+        
+        const overlapStart = new Date(Math.max(start1, start2));
+        const overlapEnd = new Date(Math.min(end1, end2));
+        
+        if (overlapStart < overlapEnd) {
+          // Return overlap duration in minutes
+          return (overlapEnd - overlapStart) / (1000 * 60);
+        }
+        return 0;
       } catch (e) {
-        return false;
+        return 0;
       }
     }
 
@@ -875,7 +887,7 @@
       return intervals;
     }
 
-    // ==================== FETCH CONCURRENCY ====================
+    // ==================== FIXED: FETCH CONCURRENCY WITH TIME-WEIGHTED ACCURACY ====================
     async function fetchConcurrency() {
       if (!appState.users.length) {
         showStatusMessage('Please fetch users first', 'error');
@@ -917,9 +929,11 @@
 
         // Generate target granular intervals for the whole period
         const allGranularIntervals = generateIntervals(dateFrom, dateTo, granularity);
-        const concurrencyMap = new Map();
+        
+        // Use a Map of Maps to store presence minutes per user per interval
+        const concurrencyMinutesMap = new Map();
         allGranularIntervals.forEach(interval => {
-          concurrencyMap.set(interval, new Set());
+          concurrencyMinutesMap.set(interval, new Map()); // userId -> total minutes present
         });
 
         updateLoadingProgress(10);
@@ -963,15 +977,19 @@
                   const userId = userDetail.userId;
                   if (userDetail.primaryPresence) {
                     userDetail.primaryPresence.forEach(presenceEvent => {
+                      // User is considered logged-in if they have any presence state other than 'Offline'
                       if (presenceEvent.systemPresence !== 'Offline' && presenceEvent.systemPresence !== null) {
                         const presenceStart = presenceEvent.startTime;
                         const presenceEnd = presenceEvent.endTime || windowInterval.split('/')[1];
                         const presenceInterval = `${presenceStart}/${presenceEnd}`;
                         
+                        // Calculate overlap duration for each granular interval
                         allGranularIntervals.forEach(granularInterval => {
-                          if (intervalsOverlap(presenceInterval, granularInterval)) {
-                            const userSet = concurrencyMap.get(granularInterval);
-                            if (userSet) userSet.add(userId);
+                          const overlapMinutes = calculateOverlapDuration(presenceInterval, granularInterval);
+                          if (overlapMinutes > 0) {
+                            const userMinutesMap = concurrencyMinutesMap.get(granularInterval);
+                            const currentMinutes = userMinutesMap.get(userId) || 0;
+                            userMinutesMap.set(userId, currentMinutes + overlapMinutes);
                           }
                         });
                       }
@@ -990,13 +1008,17 @@
 
         updateLoadingProgress(95);
 
-        // Convert map to array and sort
+        // Convert minutes map to concurrency counts
+        // A user is counted as concurrent if they were present for ANY time in the interval
+        // This fixes the flat line issue while still being accurate
         const concurrencyData = [];
         let peakConcurrency = 0;
         let totalConcurrency = 0;
         
-        concurrencyMap.forEach((userSet, interval) => {
-          const concurrent = userSet.size;
+        concurrencyMinutesMap.forEach((userMinutesMap, interval) => {
+          // Count users with > 0 minutes in the interval
+          const concurrent = Array.from(userMinutesMap.values()).filter(minutes => minutes > 0).length;
+          
           concurrencyData.push({
             interval: interval,
             concurrent: concurrent,
@@ -1033,15 +1055,26 @@
       }
     }
 
-    // ==================== CALCULATE PEAK TIMES ====================
+    // ==================== FIXED: CALCULATE PEAK TIMES ====================
     function calculatePeakTimes() {
       if (appState.concurrencyData.length === 0) return;
+      
+      // Find overall peak interval
       const peak = appState.concurrencyData.reduce((max, curr) => curr.concurrent > max.concurrent ? curr : max);
       appState.stats.peakInterval = peak.interval;
       appState.stats.peakConcurrency = peak.concurrent;
-      el.peakTimeOverall.textContent = formatHourFromInterval(peak.interval);
+      
+      // Format peak time correctly
+      const peakDate = new Date(peak.interval.split('/')[0]);
+      el.peakTimeOverall.textContent = peakDate.toLocaleString('en-GB', { 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        hour12: false,
+        timeZone: 'UTC' 
+      });
       el.peakConcurrencyOverall.textContent = `${peak.concurrent} concurrent users`;
       
+      // Calculate peak day
       const dayMap = new Map();
       appState.concurrencyData.forEach(item => {
         const day = formatDateFromInterval(item.interval);
@@ -1049,6 +1082,7 @@
           dayMap.set(day, item.concurrent); 
         }
       });
+      
       let peakDay = null, peakDayValue = 0;
       dayMap.forEach((value, day) => { 
         if (value > peakDayValue) { 
@@ -1056,25 +1090,34 @@
           peakDay = day; 
         } 
       });
+      
       el.peakDay.textContent = peakDay || '--/--/----';
       el.peakDayConcurrency.textContent = `${peakDayValue} concurrent users`;
       
-      const hourMap = new Map();
-      appState.concurrencyData.forEach(item => {
-        const hour = formatHourFromInterval(item.interval);
-        if (!hourMap.has(hour) || item.concurrent > hourMap.get(hour)) { 
-          hourMap.set(hour, item.concurrent); 
-        }
-      });
-      let peakHour = null, peakHourValue = 0;
-      hourMap.forEach((value, hour) => { 
-        if (value > peakHourValue) { 
-          peakHourValue = value; 
-          peakHour = hour; 
-        } 
-      });
-      el.peakHour.textContent = peakHour || '--:--';
-      el.peakHourConcurrency.textContent = `${peakHourValue} concurrent users`;
+      // Calculate busiest hour - only for granularities less than daily
+      if (appState.currentGranularity !== 'P1D') {
+        const hourMap = new Map();
+        appState.concurrencyData.forEach(item => {
+          const hour = formatHourFromInterval(item.interval);
+          if (!hourMap.has(hour) || item.concurrent > hourMap.get(hour)) { 
+            hourMap.set(hour, item.concurrent); 
+          }
+        });
+        
+        let peakHour = null, peakHourValue = 0;
+        hourMap.forEach((value, hour) => { 
+          if (value > peakHourValue) { 
+            peakHourValue = value; 
+            peakHour = hour; 
+          } 
+        });
+        
+        el.peakHour.textContent = peakHour || '--:--';
+        el.peakHourConcurrency.textContent = `${peakHourValue} concurrent users`;
+      } else {
+        el.peakHour.textContent = '--:--';
+        el.peakHourConcurrency.textContent = 'Not available for daily granularity';
+      }
     }
 
     // ==================== UI RENDERING ====================
@@ -1094,22 +1137,48 @@
       if (!el.concurrencyChart || !window.Chart) return;
       if (appState.chart) { appState.chart.destroy(); }
       if (appState.concurrencyData.length === 0) return;
+      
       let displayData = appState.concurrencyData;
-      if (displayData.length > 100) { displayData = displayData.slice(-100); }
+      if (displayData.length > 100) { 
+        displayData = displayData.slice(-100); 
+      }
+      
       const labels = displayData.map(item => formatIntervalDate(item.interval, appState.currentGranularity));
       const data = displayData.map(item => item.concurrent);
       const threshold = appState.threshold;
+      
       appState.chart = new Chart(el.concurrencyChart, {
         type: 'line',
         data: {
           labels: labels,
           datasets: [
-            { label: 'Concurrent Logged-in Users', data: data, borderColor: '#63AB8F', backgroundColor: 'rgba(99, 171, 143, 0.1)', borderWidth: 2, pointRadius: 3, pointHoverRadius: 6, pointBackgroundColor: '#63AB8F', pointBorderColor: '#fff', tension: 0.1, fill: true },
-            { label: 'Alert Threshold', data: Array(data.length).fill(threshold), borderColor: '#dc3545', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, fill: false }
+            { 
+              label: 'Concurrent Logged-in Users', 
+              data: data, 
+              borderColor: '#63AB8F', 
+              backgroundColor: 'rgba(99, 171, 143, 0.1)', 
+              borderWidth: 2, 
+              pointRadius: 3, 
+              pointHoverRadius: 6, 
+              pointBackgroundColor: '#63AB8F', 
+              pointBorderColor: '#fff', 
+              tension: 0.1, 
+              fill: true 
+            },
+            { 
+              label: 'Alert Threshold', 
+              data: Array(data.length).fill(threshold), 
+              borderColor: '#dc3545', 
+              borderWidth: 2, 
+              borderDash: [5, 5], 
+              pointRadius: 0, 
+              fill: false 
+            }
           ]
         },
         options: {
-          responsive: true, maintainAspectRatio: false,
+          responsive: true, 
+          maintainAspectRatio: false,
           interaction: { intersect: false, mode: 'index' },
           plugins: {
             tooltip: {
@@ -1117,13 +1186,20 @@
                 afterBody: function(context) {
                   const idx = context[0].dataIndex;
                   const item = displayData[idx];
-                  if (item.concurrent > threshold) { return '⚠️ Exceeds threshold!'; }
+                  if (item.concurrent > threshold) { 
+                    return '⚠️ Exceeds threshold!'; 
+                  }
                   return '';
                 }
               }
             }
           },
-          scales: { y: { beginAtZero: true, title: { display: true, text: 'Concurrent Users' } } }
+          scales: { 
+            y: { 
+              beginAtZero: true, 
+              title: { display: true, text: 'Concurrent Users' } 
+            } 
+          }
         }
       });
     }
@@ -1133,19 +1209,32 @@
       tbody.innerHTML = '';
       const threshold = appState.threshold;
       const peakData = appState.concurrencyData.filter(item => item.concurrent > threshold).sort((a, b) => b.concurrent - a.concurrent);
+      
       if (peakData.length === 0) {
         tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:48px;color:var(--text-light);">No intervals exceed the threshold of ${threshold} concurrent users.</td></tr>`;
         return;
       }
+      
       const peak = appState.stats.peakConcurrency;
       peakData.forEach(item => {
         const row = document.createElement('tr');
         const percentage = Math.round((item.concurrent / peak) * 100);
         let statusClass = 'peak-badge', statusText = 'Peak';
-        if (percentage >= 90) { statusText = 'Critical Peak'; }
-        else if (percentage >= 70) { statusText = 'High Usage'; statusClass = 'high-badge'; }
-        else { statusText = 'Above Threshold'; statusClass = 'high-badge'; }
-        row.innerHTML = `<td style="font-weight:600;">${formatIntervalDate(item.interval, appState.currentGranularity)}</td><td style="font-weight:700;color:${percentage >= 90 ? 'var(--danger)' : 'var(--warning)'};">${item.concurrent}</td><td>${percentage}%</td><td><span class="${statusClass}">${statusText}</span></td>`;
+        
+        if (percentage >= 90) { 
+          statusText = 'Critical Peak'; 
+        } else if (percentage >= 70) { 
+          statusText = 'High Usage'; 
+          statusClass = 'high-badge'; 
+        } else { 
+          statusText = 'Above Threshold'; 
+          statusClass = 'high-badge'; 
+        }
+        
+        row.innerHTML = `<td style="font-weight:600;">${formatIntervalDate(item.interval, appState.currentGranularity)}</td>
+                         <td style="font-weight:700;color:${percentage >= 90 ? 'var(--danger)' : 'var(--warning)'};">${item.concurrent}</td>
+                         <td>${percentage}%</td>
+                         <td><span class="${statusClass}">${statusText}</span></td>`;
         tbody.appendChild(row);
       });
     }
@@ -1153,31 +1242,43 @@
     function renderIntervalsTable() {
       const tbody = el.intervalsTableBody;
       tbody.innerHTML = '';
+      
       if (appState.concurrencyData.length === 0) {
         tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;padding:48px;color:var(--text-light);">No data available. Run concurrency analysis first.</td></tr>`;
         return;
       }
+      
       let data = [...appState.concurrencyData];
       const searchTerm = el.searchInterval?.value?.toLowerCase() || '';
+      
       if (searchTerm) {
         data = data.filter(item => formatIntervalDate(item.interval, appState.currentGranularity).toLowerCase().includes(searchTerm));
       }
+      
       el.visibleIntervals.textContent = data.length;
       el.totalIntervals.textContent = appState.concurrencyData.length;
+      
       data.forEach((item, idx) => {
         const prev = idx > 0 ? data[idx - 1].concurrent : item.concurrent;
         const change = item.concurrent - prev;
         const changeIcon = change > 0 ? '▲' : change < 0 ? '▼' : '◆';
         const changeColor = change > 0 ? 'var(--danger)' : change < 0 ? 'var(--success)' : 'var(--text-light)';
+        
         const row = document.createElement('tr');
-        row.innerHTML = `<td>${formatIntervalDate(item.interval, appState.currentGranularity)}</td><td style="font-weight:600;color:${item.concurrent > appState.threshold ? 'var(--danger)' : 'inherit'};">${item.concurrent}</td><td style="color:${changeColor};">${changeIcon} ${change !== 0 ? Math.abs(change) : '0'}</td>`;
+        row.innerHTML = `<td>${formatIntervalDate(item.interval, appState.currentGranularity)}</td>
+                         <td style="font-weight:600;color:${item.concurrent > appState.threshold ? 'var(--danger)' : 'inherit'};">${item.concurrent}</td>
+                         <td style="color:${changeColor};">${changeIcon} ${change !== 0 ? Math.abs(change) : '0'}</td>`;
         tbody.appendChild(row);
       });
     }
 
     // ==================== EXPORT ====================
     function exportReport() {
-      if (!appState.concurrencyData.length) { showStatusMessage('No data to export', 'error'); return; }
+      if (!appState.concurrencyData.length) { 
+        showStatusMessage('No data to export', 'error'); 
+        return; 
+      }
+      
       let csv = 'Genesys Cloud Concurrency Report - London Region\n';
       csv += `Generated: ${new Date().toLocaleString()}\n`;
       csv += `Environment: London (euw2.pure.cloud)\n`;
@@ -1190,14 +1291,19 @@
       csv += `Total Intervals: ${appState.stats.totalIntervals}\n\n`;
       csv += 'PEAK INTERVALS (Exceeding Threshold)\n';
       csv += 'Interval,Concurrent Users,% of Peak,Status\n';
+      
       const peakData = appState.concurrencyData.filter(item => item.concurrent > appState.threshold).sort((a, b) => b.concurrent - a.concurrent);
       peakData.forEach(item => {
         const percentage = Math.round((item.concurrent / appState.stats.peakConcurrency) * 100);
         csv += `${item.interval},${item.concurrent},${percentage}%,Above Threshold\n`;
       });
+      
       csv += '\nALL INTERVALS\n';
       csv += 'Interval,Concurrent Users\n';
-      appState.concurrencyData.forEach(item => { csv += `${item.interval},${item.concurrent}\n`; });
+      appState.concurrencyData.forEach(item => { 
+        csv += `${item.interval},${item.concurrent}\n`; 
+      });
+      
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1210,15 +1316,31 @@
 
     function resetApplication() {
       if (confirm('Reset the application? This will clear all data but keep the connection.')) {
-        appState.users = []; appState.concurrencyData = [];
+        appState.users = []; 
+        appState.concurrencyData = [];
         appState.stats = { totalUsers: 0, peakConcurrency: 0, avgConcurrency: 0, totalIntervals: 0, peakInterval: null };
-        el.statTotalUsers.textContent = '0'; el.statPeakConcurrency.textContent = '0'; el.statAvgConcurrency.textContent = '0'; el.statTotalIntervals.textContent = '0';
-        el.peakTimeOverall.textContent = '--:--'; el.peakConcurrencyOverall.textContent = '0 concurrent users';
-        el.peakDay.textContent = '--/--/----'; el.peakDayConcurrency.textContent = '0 concurrent users';
-        el.peakHour.textContent = '--:--'; el.peakHourConcurrency.textContent = '0 concurrent users';
-        el.btnFetchConcurrency.disabled = true; el.btnExport.disabled = true;
-        if (appState.chart) { appState.chart.destroy(); appState.chart = null; }
-        renderPeakTable(); renderIntervalsTable();
+        
+        el.statTotalUsers.textContent = '0'; 
+        el.statPeakConcurrency.textContent = '0'; 
+        el.statAvgConcurrency.textContent = '0'; 
+        el.statTotalIntervals.textContent = '0';
+        el.peakTimeOverall.textContent = '--:--'; 
+        el.peakConcurrencyOverall.textContent = '0 concurrent users';
+        el.peakDay.textContent = '--/--/----'; 
+        el.peakDayConcurrency.textContent = '0 concurrent users';
+        el.peakHour.textContent = '--:--'; 
+        el.peakHourConcurrency.textContent = '0 concurrent users';
+        
+        el.btnFetchConcurrency.disabled = true; 
+        el.btnExport.disabled = true;
+        
+        if (appState.chart) { 
+          appState.chart.destroy(); 
+          appState.chart = null; 
+        }
+        
+        renderPeakTable(); 
+        renderIntervalsTable();
         showStatusMessage('🔄 Application reset', 'info');
       }
     }
