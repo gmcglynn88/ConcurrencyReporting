@@ -430,16 +430,16 @@
       <div class="auth-card">
         <h2 style="border-bottom:none;text-align:center;justify-content:center;margin-bottom:20px;">🔐 Genesys Cloud Authentication</h2>
         <div style="padding:20px;text-align:center;">
-          <div class="spinner" style="width:50px;height:50px;margin:20px auto;"></div>
-          <p style="margin:20px 0;font-size:16px;color:var(--text-color);">Attempting automatic authentication...</p>
+          <div class="spinner" id="authSpinner" style="width:50px;height:50px;margin:20px auto;"></div>
+          <p id="authMessage" style="margin:20px 0;font-size:16px;color:var(--text-color);">Attempting automatic authentication...</p>
           <p style="color:var(--text-light);font-size:14px;margin-bottom:20px;">Client ID: fe305808-b368-4547-8af9-325d28d552bb</p>
-          <button id="btnAuthenticate" class="btn-block" style="background:var(--primary-color);padding:14px;font-size:16px;">
+          <button id="btnAuthenticate" class="btn-block" style="background:var(--primary-color);padding:14px;font-size:16px;display:none;">
             🔑 Click to Authenticate Manually
           </button>
           <div class="info-box" style="margin-top:30px;text-align:left;">
             <strong style="color:var(--primary-color);">📍 Environment:</strong> EU West (Dublin) - mypurecloud.ie<br>
             <strong style="color:var(--primary-color);">📋 Redirect URI:</strong> https://gmcglynn88.github.io/ConcurrencyReporting/<br>
-            <strong style="color:var(--primary-color);">ℹ️ Tip:</strong> Make sure this URI is added to your OAuth client
+            <strong style="color:var(--primary-color);">ℹ️ Status:</strong> <span id="authStatus">Checking for existing token...</span>
           </div>
         </div>
       </div>
@@ -758,7 +758,10 @@
       loadingText: document.getElementById('loadingText'),
       loadingSubtext: document.getElementById('loadingSubtext'),
       loadingProgressFill: document.getElementById('loadingProgressFill'),
-      statusContainer: document.getElementById('statusContainer')
+      statusContainer: document.getElementById('statusContainer'),
+      authSpinner: document.getElementById('authSpinner'),
+      authMessage: document.getElementById('authMessage'),
+      authStatus: document.getElementById('authStatus')
     };
 
     // ==================== UTILITIES ====================
@@ -868,14 +871,14 @@
         const environment = localStorage.getItem(STORAGE_KEYS.ENVIRONMENT);
         
         if (token && tokenExpiry && environment) {
-          CURRENT_CONFIG = {
-            token,
-            tokenExpiry: parseInt(tokenExpiry, 10),
-            environment: ENVIRONMENTS['eu-west-1'].api,
-            environmentRegion: 'eu-west-1'
-          };
-
-          if (Date.now() < CURRENT_CONFIG.tokenExpiry) {
+          const expiry = parseInt(tokenExpiry, 10);
+          if (Date.now() < expiry) {
+            CURRENT_CONFIG = {
+              token,
+              tokenExpiry: expiry,
+              environment: ENVIRONMENTS['eu-west-1'].api,
+              environmentRegion: 'eu-west-1'
+            };
             appState.isConnected = true;
             return true;
           }
@@ -942,13 +945,17 @@
     }
 
     function initAuth() {
+      // First check URL hash for token
       const { token, error, errorDescription, expiresIn } = parseTokenFromHash();
       
       if (window.location.hash) {
+        // Clear the hash
         history.replaceState(null, '', window.location.pathname + window.location.search);
       }
 
       if (token) {
+        // Token found in URL - save it and authenticate
+        el.authStatus.textContent = 'Token found in URL, authenticating...';
         saveCredentials(token, expiresIn || '3600');
         logMessage('SUCCESS', 'Authentication successful', 'Connected to Dublin');
         showMainApp();
@@ -956,20 +963,32 @@
       }
 
       if (error) {
+        // Error in URL - show manual button
+        el.authStatus.textContent = `Authentication failed: ${error}`;
+        el.authMessage.textContent = `❌ Authentication failed: ${errorDescription || error}`;
+        el.authSpinner.style.display = 'none';
+        el.btnAuthenticate.style.display = 'block';
         logMessage('ERROR', 'Authentication failed', `${error}: ${errorDescription || ''}`);
-        showStatusMessage(`❌ Authentication failed: ${error}`, 'error');
+        return;
       }
 
+      // No token in URL - check stored credentials
+      el.authStatus.textContent = 'Checking stored credentials...';
+      
       if (loadStoredCredentials()) {
+        // Valid stored token exists
+        el.authStatus.textContent = 'Stored token found, authenticating...';
         logMessage('SUCCESS', 'Auto-authentication successful', 'Using stored credentials');
         showMainApp();
         return;
       }
 
-      // Show auth button and hide spinner
-      const spinner = document.querySelector('#authContainer .spinner');
-      if (spinner) spinner.style.display = 'none';
+      // No valid token - show manual button
+      el.authStatus.textContent = 'No valid token found - please authenticate';
+      el.authMessage.textContent = 'Please click the button below to authenticate with Genesys Cloud';
+      el.authSpinner.style.display = 'none';
       el.btnAuthenticate.style.display = 'block';
+      logMessage('INFO', 'Authentication required', 'No valid token found');
     }
 
     function showMainApp() {
@@ -989,11 +1008,15 @@
       el.authContainer.style.display = 'block';
       
       // Reset auth container
-      const spinner = document.querySelector('#authContainer .spinner');
-      if (spinner) spinner.style.display = 'block';
-      el.btnAuthenticate.style.display = 'block';
+      el.authSpinner.style.display = 'block';
+      el.btnAuthenticate.style.display = 'none';
+      el.authMessage.textContent = 'Attempting automatic authentication...';
+      el.authStatus.textContent = 'Checking for existing token...';
       
       logMessage('INFO', 'Disconnected from Genesys Cloud');
+      
+      // Check for stored credentials again
+      setTimeout(() => initAuth(), 500);
     }
 
     function updateConnectionStatus(connected) {
@@ -1732,7 +1755,7 @@
       logMessage('INFO', 'Concurrency Analyser initialised', 'Ready for Dublin org');
     }
 
-    // Start authentication
+    // Start authentication immediately
     initAuth();
   </script>
 </body>
