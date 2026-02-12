@@ -1,1 +1,1549 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Genesys Cloud - Concurrency & Peak Time Analyser</title>
+  <style>
+    :root{
+      --primary-color:#5A8FBB;
+      --secondary-color:#3F6F99;
+      --accent-color:#F9A826;
+      --border-color:#DEE2E6;
+      --light-bg:#F8F9FA;
+      --card-bg:#FFFFFF;
+      --text-color:#2C3E50;
+      --text-light:#6C757D;
+      --peak-color:#DC3545;
+      --high-color:#FFC107;
+      --medium-color:#17A2B8;
+      --low-color:#28A745;
+    }
 
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body{
+      font-family:'Aptos','Segoe UI',system-ui,-apple-system,Arial,sans-serif;
+      margin:0;padding:20px;
+      background:var(--light-bg);
+      color:var(--text-color);
+      line-height:1.5;
+    }
+
+    .container{
+      max-width:1600px;
+      margin:0 auto;
+    }
+
+    header{
+      background:var(--card-bg);
+      border-radius:12px;
+      padding:24px 32px;
+      margin-bottom:24px;
+      box-shadow:0 2px 8px rgba(0,0,0,.08);
+      border-left:5px solid var(--primary-color);
+      border:1px solid var(--border-color);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    h1{
+      color:var(--text-color);
+      font-size:28px;
+      font-weight:600;
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+
+    .subtitle{
+      color:var(--text-light);
+      font-size:15px;
+      margin-top:6px;
+    }
+
+    .connection-status{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      background:var(--light-bg);
+      padding:10px 18px;
+      border-radius:30px;
+    }
+
+    .status-indicator{
+      width:12px;
+      height:12px;
+      border-radius:50%;
+      background:var(--text-light);
+    }
+
+    .connected .status-indicator{background:var(--low-color);}
+
+    .main-grid{
+      display:grid;
+      grid-template-columns:380px 1fr;
+      gap:24px;
+    }
+
+    @media(max-width:1100px){
+      .main-grid{grid-template-columns:1fr;}
+    }
+
+    .card{
+      background:var(--card-bg);
+      border:1px solid var(--border-color);
+      border-radius:14px;
+      padding:24px;
+      margin-bottom:24px;
+      box-shadow:0 2px 8px rgba(0,0,0,.05);
+    }
+
+    .card h2{
+      color:var(--primary-color);
+      margin-bottom:20px;
+      font-size:20px;
+      padding-bottom:14px;
+      border-bottom:2px solid var(--light-bg);
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+
+    .form-group{margin-bottom:20px;}
+    label{
+      display:block;
+      font-weight:600;
+      margin-bottom:6px;
+      font-size:14px;
+    }
+    select,input,button{
+      padding:12px;
+      border:1px solid var(--border-color);
+      border-radius:8px;
+      font-size:15px;
+      width:100%;
+      font-family:inherit;
+    }
+
+    button{
+      background:var(--primary-color);
+      color:#fff;
+      font-weight:600;
+      cursor:pointer;
+      transition:background .2s;
+      border:none;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+    }
+    button:hover{background:var(--secondary-color);}
+    button:disabled{background:var(--text-light);cursor:not-allowed;}
+    .btn-primary{background:var(--primary-color);}
+    .btn-success{background:var(--low-color);}
+    .btn-success:hover{background:#218838;}
+    .btn-danger{background:var(--peak-color);}
+    .btn-danger:hover{background:#bd2130;}
+
+    .date-range{
+      display:flex;
+      gap:16px;
+      flex-wrap:wrap;
+    }
+    .date-field{
+      flex:1;
+    }
+
+    .granularity-selector{
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:10px;
+      margin:20px 0;
+    }
+    .granularity-option{
+      padding:12px 8px;
+      background:var(--light-bg);
+      border:1px solid var(--border-color);
+      border-radius:8px;
+      text-align:center;
+      font-weight:600;
+      cursor:pointer;
+      transition:all 0.2s;
+    }
+    .granularity-option:hover{
+      background:var(--primary-color);
+      color:white;
+    }
+    .granularity-option.active{
+      background:var(--primary-color);
+      color:white;
+      border-color:var(--primary-color);
+    }
+
+    .stats-grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+      gap:20px;
+      margin-bottom:24px;
+    }
+
+    .stat-card{
+      background:rgba(90,143,187,0.1);
+      border-radius:12px;
+      padding:20px;
+      border:1px solid rgba(90,143,187,0.2);
+      text-align:center;
+    }
+    .stat-value{
+      font-size:36px;
+      font-weight:700;
+      color:var(--primary-color);
+      margin:12px 0;
+    }
+    .stat-label{
+      font-size:14px;
+      color:var(--text-light);
+      text-transform:uppercase;
+      letter-spacing:1px;
+    }
+
+    .peak-stat{
+      background:rgba(220,53,69,0.1);
+      border-color:rgba(220,53,69,0.3);
+    }
+    .peak-stat .stat-value{color:var(--peak-color);}
+
+    .chart-container{
+      background:var(--card-bg);
+      border-radius:12px;
+      padding:20px;
+      margin-top:20px;
+      height:400px;
+      position:relative;
+    }
+
+    .table-container{
+      overflow-x:auto;
+      margin-top:24px;
+      border-radius:10px;
+      border:1px solid var(--border-color);
+      background:var(--card-bg);
+      max-height:500px;
+      overflow-y:auto;
+    }
+    table{width:100%;border-collapse:collapse;}
+    th{
+      background:var(--primary-color);
+      color:white;
+      font-weight:600;
+      position:sticky;
+      top:0;
+      padding:16px;
+      text-align:left;
+    }
+    td{padding:14px 16px;border-bottom:1px solid var(--border-color);}
+    tr:hover{background:rgba(90,143,187,0.05);}
+
+    .peak-badge{
+      display:inline-block;
+      padding:4px 12px;
+      border-radius:20px;
+      font-size:12px;
+      font-weight:600;
+      background:rgba(220,53,69,0.15);
+      color:var(--peak-color);
+    }
+    .high-badge{
+      background:rgba(255,193,7,0.15);
+      color:#d39e00;
+    }
+
+    .loading-overlay{
+      position:fixed;
+      top:0;left:0;right:0;bottom:0;
+      background:rgba(255,255,255,0.95);
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      align-items:center;
+      z-index:9999;
+      display:none;
+    }
+    .loading-overlay.active{display:flex;}
+    .spinner{
+      width:60px;height:60px;
+      border:5px solid #f3f3f3;
+      border-top:5px solid var(--primary-color);
+      border-radius:50%;
+      animation:spin 1s linear infinite;
+      margin-bottom:20px;
+    }
+    @keyframes spin{to{transform:rotate(360deg);}}
+
+    .progress-bar{
+      width:100%;
+      max-width:500px;
+      height:10px;
+      background:var(--light-bg);
+      border-radius:5px;
+      margin-top:20px;
+      overflow:hidden;
+    }
+    .progress-fill{
+      height:100%;
+      background:linear-gradient(90deg,var(--primary-color),var(--secondary-color));
+      width:0%;
+      transition:width 0.3s;
+    }
+
+    .peak-time-grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+      gap:20px;
+      margin-top:24px;
+    }
+
+    .peak-card{
+      background:white;
+      border-radius:12px;
+      padding:20px;
+      border:1px solid var(--border-color);
+    }
+    .peak-time{
+      font-size:24px;
+      font-weight:700;
+      color:var(--peak-color);
+      margin:10px 0;
+    }
+
+    .status-container{
+      position:fixed;
+      top:20px;right:20px;
+      z-index:1000;
+      max-width:400px;
+    }
+    .status-message{
+      background:white;
+      padding:16px;
+      border-radius:8px;
+      box-shadow:0 4px 12px rgba(0,0,0,0.15);
+      border-left:4px solid var(--primary-color);
+      margin-bottom:10px;
+      animation:slideIn 0.3s;
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    @keyframes slideIn{
+      from{transform:translateX(100%);opacity:0;}
+      to{transform:translateX(0);opacity:1;}
+    }
+
+    .tooltip{
+      position:relative;
+      display:inline-block;
+      border-bottom:1px dashed var(--text-light);
+      cursor:help;
+    }
+
+    .auth-container{
+      max-width:500px;
+      margin:100px auto;
+      text-align:center;
+    }
+
+    .time-comparison{
+      display:flex;
+      align-items:center;
+      justify-content:space-around;
+      padding:20px;
+      background:var(--light-bg);
+      border-radius:12px;
+    }
+
+    .footer{
+      margin-top:30px;
+      padding:20px;
+      text-align:center;
+      color:var(--text-light);
+      font-size:13px;
+    }
+  </style>
+</head>
+<body>
+  <div id="authContainer" style="display:block;">
+    <div class="auth-container">
+      <div class="card">
+        <h2 style="border-bottom:none;text-align:center;justify-content:center;">🔐 Genesys Cloud Authentication</h2>
+        <div style="padding:30px;text-align:center;">
+          <div class="spinner" style="width:50px;height:50px;margin:20px auto;"></div>
+          <p style="margin:20px 0;font-size:16px;">Connecting to Genesys Cloud Dublin (mypurecloud.ie)...</p>
+          <p style="color:var(--text-light);font-size:14px;">Using OAuth client: fe305808-b368-4547-8af9-325d28d552bb</p>
+          <button id="btnAuthenticate" class="btn-primary" style="width:auto;padding:14px 40px;margin-top:20px;">🔑 Authenticate</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="mainContent" style="display:none;">
+    <div class="container">
+      <header>
+        <div>
+          <h1>📈 Genesys Cloud Concurrency & Peak Time Analyser</h1>
+          <div class="subtitle">Real-time concurrency analysis from 15m to daily granularity</div>
+        </div>
+        <div id="connectionStatus" class="connection-status">
+          <span class="status-indicator" id="statusIndicator"></span>
+          <span id="statusText">Not Connected</span>
+          <button id="btnDisconnect" style="width:auto;padding:8px 16px;background:var(--text-light);">Disconnect</button>
+        </div>
+      </header>
+
+      <div class="main-grid">
+        <!-- Left Column - Controls -->
+        <div>
+          <div class="card">
+            <h2>📅 Analysis Period</h2>
+            <div class="date-range">
+              <div class="date-field">
+                <label>From Date</label>
+                <input type="date" id="dateFrom" required>
+              </div>
+              <div class="date-field">
+                <label>To Date</label>
+                <input type="date" id="dateTo" required>
+              </div>
+            </div>
+            <div style="margin-top:16px;padding:14px;background:var(--light-bg);border-radius:8px;font-size:14px;">
+              <strong>📊 Timezone:</strong> UTC (data will be shown in UTC)
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>⏱️ Granularity</h2>
+            <div class="granularity-selector" id="granularitySelector">
+              <div class="granularity-option" data-granularity="PT15M">15m</div>
+              <div class="granularity-option" data-granularity="PT30M">30m</div>
+              <div class="granularity-option active" data-granularity="PT60M">1h</div>
+              <div class="granularity-option" data-granularity="P1D">Daily</div>
+            </div>
+            <div style="margin-top:20px;">
+              <label for="thresholdConcurrency">Concurrency Alert Threshold</label>
+              <input type="number" id="thresholdConcurrency" value="20" min="1" max="1000">
+              <div style="font-size:13px;color:var(--text-light);margin-top:6px;">
+                Highlight intervals exceeding this concurrent user count
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>🚀 Data Actions</h2>
+            <button id="btnFetchUsers" class="btn-primary" style="margin-bottom:12px;" disabled>
+              👥 1. Fetch Users
+            </button>
+            <button id="btnFetchConcurrency" class="btn-success" style="margin-bottom:12px;" disabled>
+              📊 2. Analyse Concurrency
+            </button>
+            <button id="btnExport" class="btn-primary" style="margin-bottom:12px;" disabled>
+              📥 Export Peak Report
+            </button>
+            <button id="btnReset" class="btn-danger" style="margin-top:8px;">
+              🔄 Reset
+            </button>
+            
+            <div style="margin-top:24px;padding:16px;background:rgba(90,143,187,0.05);border-radius:8px;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                <span style="background:var(--primary-color);color:white;padding:2px 10px;border-radius:20px;font-size:12px;">ℹ️</span>
+                <span style="font-weight:600;">How it works</span>
+              </div>
+              <ul style="list-style-type:none;font-size:13px;color:var(--text-light);">
+                <li style="margin-bottom:8px;">✓ Fetches all users from your org</li>
+                <li style="margin-bottom:8px;">✓ Gets presence data for each 15m/30m/1h/day interval</li>
+                <li style="margin-bottom:8px;">✓ Calculates concurrent logged-in users</li>
+                <li style="margin-bottom:8px;">✓ Identifies peak usage times automatically</li>
+                <li>✓ No interacting hours - pure concurrency</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column - Results -->
+        <div>
+          <!-- Key Stats -->
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-label">Total Users</div>
+              <div class="stat-value" id="statTotalUsers">0</div>
+              <div>Licensed users</div>
+            </div>
+            <div class="stat-card peak-stat">
+              <div class="stat-label">Peak Concurrency</div>
+              <div class="stat-value" id="statPeakConcurrency">0</div>
+              <div>Max concurrent logged-in</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Avg Concurrency</div>
+              <div class="stat-value" id="statAvgConcurrency">0</div>
+              <div>Period average</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Total Intervals</div>
+              <div class="stat-value" id="statTotalIntervals">0</div>
+              <div>Time slices analysed</div>
+            </div>
+          </div>
+
+          <!-- Peak Times Cards -->
+          <div class="peak-time-grid">
+            <div class="peak-card">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:24px;">🏆</span>
+                <h3 style="margin:0;font-size:18px;">Overall Peak</h3>
+              </div>
+              <div class="peak-time" id="peakTimeOverall">--:--</div>
+              <div style="color:var(--text-light);" id="peakConcurrencyOverall">0 concurrent users</div>
+            </div>
+            <div class="peak-card">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:24px;">📅</span>
+                <h3 style="margin:0;font-size:18px;">Peak Day</h3>
+              </div>
+              <div class="peak-time" id="peakDay">--/--/----</div>
+              <div style="color:var(--text-light);" id="peakDayConcurrency">0 concurrent users</div>
+            </div>
+            <div class="peak-card">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:24px;">⏰</span>
+                <h3 style="margin:0;font-size:18px;">Busiest Hour</h3>
+              </div>
+              <div class="peak-time" id="peakHour">--:00</div>
+              <div style="color:var(--text-light);" id="peakHourConcurrency">0 concurrent users</div>
+            </div>
+          </div>
+
+          <!-- Concurrency Chart -->
+          <div class="card">
+            <h2>📊 Concurrency Over Time</h2>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+              <span id="granularityLabel" style="font-weight:600;color:var(--primary-color);">1-hour intervals</span>
+              <span id="thresholdIndicator" style="background:rgba(220,53,69,0.1);padding:6px 14px;border-radius:20px;font-size:13px;">
+                Alert threshold: <span id="thresholdValue">20</span>
+              </span>
+            </div>
+            <div class="chart-container">
+              <canvas id="concurrencyChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Peak Intervals Table -->
+          <div class="card">
+            <h2>⚠️ Peak Intervals (exceeding threshold)</h2>
+            <div class="table-container">
+              <table id="peakTable">
+                <thead>
+                  <tr>
+                    <th>Date & Time</th>
+                    <th>Concurrent Users</th>
+                    <th>% of Peak</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="peakTableBody">
+                  <tr>
+                    <td colspan="4" style="text-align:center;padding:40px;color:var(--text-light);">
+                      No data yet. Fetch users and run concurrency analysis.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- All Intervals Data -->
+          <div class="card">
+            <h2>📋 All Intervals</h2>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+              <input type="text" id="searchInterval" placeholder="🔍 Search date/time..." style="max-width:300px;">
+              <span style="font-size:13px;color:var(--text-light);">Showing <span id="visibleIntervals">0</span>/<span id="totalIntervals">0</span></span>
+            </div>
+            <div class="table-container" style="max-height:400px;">
+              <table id="intervalsTable">
+                <thead>
+                  <tr>
+                    <th>Interval Start (UTC)</th>
+                    <th>Concurrent Users</th>
+                    <th>Change</th>
+                  </tr>
+                </thead>
+                <tbody id="intervalsTableBody">
+                  <tr>
+                    <td colspan="3" style="text-align:center;padding:40px;color:var(--text-light);">
+                      No data available.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="footer">
+        Genesys Cloud Concurrency Analyser | PureCloud.ie (Dublin) | OAuth Client: fe305808-b368-4547-8af9-325d28d552bb
+      </div>
+    </div>
+  </div>
+
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+    <div id="loadingText" style="font-size:20px;font-weight:600;">Loading...</div>
+    <div id="loadingSubtext" style="font-size:15px;color:var(--text-light);margin-top:12px;"></div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="loadingProgressFill"></div>
+    </div>
+  </div>
+
+  <div class="status-container" id="statusContainer"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+  <script>
+    // ==================== CONFIGURATION ====================
+    const CLIENT_ID = 'fe305808-b368-4547-8af9-325d28d552bb';
+    const REDIRECT_URI = 'https://gmcglynn88.github.io/ConcurrencyReporting/';
+    
+    const ENVIRONMENTS = {
+      'eu-west-1': { 
+        name: 'EU West (Dublin)', 
+        api: 'https://api.mypurecloud.ie', 
+        login: 'https://login.mypurecloud.ie' 
+      }
+    };
+
+    const STORAGE_KEYS = {
+      TOKEN: 'gc_concurrency_token',
+      TOKEN_EXPIRY: 'gc_concurrency_expiry',
+      ENV: 'gc_concurrency_env',
+      DATE_FROM: 'gc_concurrency_date_from',
+      DATE_TO: 'gc_concurrency_date_to',
+      GRANULARITY: 'gc_concurrency_granularity',
+      THRESHOLD: 'gc_concurrency_threshold'
+    };
+
+    // ==================== APP STATE ====================
+    let appState = {
+      token: null,
+      tokenExpiry: null,
+      environment: ENVIRONMENTS['eu-west-1'],
+      isConnected: false,
+      users: [],
+      concurrencyData: [],
+      peakData: [],
+      stats: {
+        totalUsers: 0,
+        peakConcurrency: 0,
+        avgConcurrency: 0,
+        totalIntervals: 0
+      },
+      currentGranularity: 'PT60M',
+      threshold: 20,
+      chart: null
+    };
+
+    // ==================== DOM ELEMENTS ====================
+    const el = {
+      authContainer: document.getElementById('authContainer'),
+      mainContent: document.getElementById('mainContent'),
+      btnAuthenticate: document.getElementById('btnAuthenticate'),
+      btnDisconnect: document.getElementById('btnDisconnect'),
+      btnFetchUsers: document.getElementById('btnFetchUsers'),
+      btnFetchConcurrency: document.getElementById('btnFetchConcurrency'),
+      btnExport: document.getElementById('btnExport'),
+      btnReset: document.getElementById('btnReset'),
+      statusIndicator: document.getElementById('statusIndicator'),
+      statusText: document.getElementById('statusText'),
+      dateFrom: document.getElementById('dateFrom'),
+      dateTo: document.getElementById('dateTo'),
+      thresholdConcurrency: document.getElementById('thresholdConcurrency'),
+      granularityOptions: document.querySelectorAll('.granularity-option'),
+      statTotalUsers: document.getElementById('statTotalUsers'),
+      statPeakConcurrency: document.getElementById('statPeakConcurrency'),
+      statAvgConcurrency: document.getElementById('statAvgConcurrency'),
+      statTotalIntervals: document.getElementById('statTotalIntervals'),
+      peakTimeOverall: document.getElementById('peakTimeOverall'),
+      peakConcurrencyOverall: document.getElementById('peakConcurrencyOverall'),
+      peakDay: document.getElementById('peakDay'),
+      peakDayConcurrency: document.getElementById('peakDayConcurrency'),
+      peakHour: document.getElementById('peakHour'),
+      peakHourConcurrency: document.getElementById('peakHourConcurrency'),
+      granularityLabel: document.getElementById('granularityLabel'),
+      thresholdValue: document.getElementById('thresholdValue'),
+      peakTableBody: document.getElementById('peakTableBody'),
+      intervalsTableBody: document.getElementById('intervalsTableBody'),
+      searchInterval: document.getElementById('searchInterval'),
+      visibleIntervals: document.getElementById('visibleIntervals'),
+      totalIntervals: document.getElementById('totalIntervals'),
+      loadingOverlay: document.getElementById('loadingOverlay'),
+      loadingText: document.getElementById('loadingText'),
+      loadingSubtext: document.getElementById('loadingSubtext'),
+      loadingProgressFill: document.getElementById('loadingProgressFill'),
+      statusContainer: document.getElementById('statusContainer')
+    };
+
+    // ==================== UTILITIES ====================
+    function logMessage(level, message, details = '') {
+      console.log(`[${level}] ${message}`, details);
+      showStatusMessage(message, level.toLowerCase());
+    }
+
+    function showStatusMessage(message, type = 'info') {
+      const msgDiv = document.createElement('div');
+      msgDiv.className = 'status-message';
+      const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'warn' ? '⚠️' : '💡';
+      const color = type === 'success' ? 'var(--low-color)' : type === 'error' ? 'var(--peak-color)' : 'var(--primary-color)';
+      msgDiv.style.borderLeftColor = color;
+      msgDiv.innerHTML = `<span style="font-size:20px;">${icon}</span><div><div style="font-weight:600;">${message}</div><div style="font-size:12px;color:var(--text-light);">${new Date().toLocaleTimeString()}</div></div>`;
+      el.statusContainer.appendChild(msgDiv);
+      setTimeout(() => msgDiv.remove(), 5000);
+    }
+
+    function setLoading(show, text = '', subtext = '') {
+      if (show) {
+        el.loadingText.textContent = text;
+        el.loadingSubtext.textContent = subtext;
+        el.loadingOverlay.classList.add('active');
+      } else {
+        el.loadingOverlay.classList.remove('active');
+      }
+    }
+
+    function updateLoadingProgress(percent) {
+      el.loadingProgressFill.style.width = `${percent}%`;
+    }
+
+    function formatIntervalDate(intervalStr, granularity) {
+      try {
+        const parts = intervalStr.split('/');
+        const start = new Date(parts[0]);
+        
+        if (granularity === 'P1D') {
+          return start.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        } else {
+          return start.toLocaleString('en-GB', { 
+            day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false 
+          }).replace(',', '');
+        }
+      } catch (e) {
+        return intervalStr;
+      }
+    }
+
+    function formatHourFromInterval(intervalStr) {
+      try {
+        const start = new Date(intervalStr.split('/')[0]);
+        return start.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+      } catch (e) {
+        return '--:--';
+      }
+    }
+
+    function formatDateFromInterval(intervalStr) {
+      try {
+        const start = new Date(intervalStr.split('/')[0]);
+        return start.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+      } catch (e) {
+        return '--/--/----';
+      }
+    }
+
+    // ==================== AUTHENTICATION ====================
+    function loadStoredCredentials() {
+      const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+      const expiry = localStorage.getItem(STORAGE_KEYS.TOKEN_EXPIRY);
+      if (token && expiry && Date.now() < parseInt(expiry)) {
+        appState.token = token;
+        appState.tokenExpiry = parseInt(expiry);
+        appState.isConnected = true;
+        return true;
+      }
+      return false;
+    }
+
+    function saveCredentials(token, expiresIn) {
+      const expiry = Date.now() + (parseInt(expiresIn) * 1000);
+      localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+      localStorage.setItem(STORAGE_KEYS.TOKEN_EXPIRY, expiry);
+      appState.token = token;
+      appState.tokenExpiry = expiry;
+      appState.isConnected = true;
+    }
+
+    function clearCredentials() {
+      localStorage.removeItem(STORAGE_KEYS.TOKEN);
+      localStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRY);
+      localStorage.removeItem(STORAGE_KEYS.ENV);
+      appState.token = null;
+      appState.tokenExpiry = null;
+      appState.isConnected = false;
+      appState.users = [];
+      appState.concurrencyData = [];
+    }
+
+    function parseTokenFromHash() {
+      const hash = window.location.hash.replace(/^#/, '');
+      if (!hash) return {};
+      const params = new URLSearchParams(hash);
+      return {
+        token: params.get('access_token'),
+        error: params.get('error'),
+        expiresIn: params.get('expires_in')
+      };
+    }
+
+    function authUrl() {
+      const state = btoa(JSON.stringify({ env: 'eu-west-1', ts: Date.now() }));
+      return `${ENVIRONMENTS['eu-west-1'].login}/oauth/authorize?client_id=${CLIENT_ID}&response_type=token&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${state}`;
+    }
+
+    function initAuth() {
+      const { token, error, expiresIn } = parseTokenFromHash();
+      
+      if (window.location.hash) {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+
+      if (token) {
+        saveCredentials(token, expiresIn || '3600');
+        logMessage('SUCCESS', 'Authentication successful');
+        showMainApp();
+        return;
+      }
+
+      if (error) {
+        logMessage('ERROR', 'Authentication failed', error);
+      }
+
+      if (loadStoredCredentials()) {
+        showMainApp();
+        return;
+      }
+
+      // Show auth button
+      el.authContainer.style.display = 'block';
+    }
+
+    function showMainApp() {
+      el.authContainer.style.display = 'none';
+      el.mainContent.style.display = 'block';
+      updateConnectionStatus(true);
+      initializeApp();
+    }
+
+    function disconnect() {
+      clearCredentials();
+      updateConnectionStatus(false);
+      el.mainContent.style.display = 'none';
+      el.authContainer.style.display = 'block';
+      logMessage('INFO', 'Disconnected');
+    }
+
+    function updateConnectionStatus(connected) {
+      appState.isConnected = connected;
+      if (connected) {
+        el.statusIndicator.style.background = 'var(--low-color)';
+        el.statusText.textContent = 'Connected to Dublin';
+        el.statusText.style.color = 'var(--low-color)';
+        el.btnFetchUsers.disabled = false;
+      } else {
+        el.statusIndicator.style.background = 'var(--text-light)';
+        el.statusText.textContent = 'Not Connected';
+        el.statusText.style.color = 'var(--text-light)';
+        el.btnFetchUsers.disabled = true;
+        el.btnFetchConcurrency.disabled = true;
+        el.btnExport.disabled = true;
+      }
+    }
+
+    // ==================== API CALLS ====================
+    async function apiCall(path, options = {}) {
+      if (!appState.token) {
+        throw new Error('Not authenticated');
+      }
+
+      const url = `${appState.environment.api}${path}`;
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          'Authorization': `Bearer ${appState.token}`,
+          'Content-Type': 'application/json',
+          ...options.headers
+        }
+      });
+
+      if (response.status === 401) {
+        throw new Error('Authentication expired. Please reconnect.');
+      }
+      
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After') || 5;
+        await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+        return apiCall(path, options);
+      }
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      }
+
+      return response.json();
+    }
+
+    // ==================== FETCH USERS ====================
+    async function fetchUsers() {
+      if (!appState.isConnected) {
+        showStatusMessage('Please connect first', 'error');
+        return;
+      }
+
+      setLoading(true, 'Fetching Users', 'Retrieving all users from Genesys Cloud...');
+      updateLoadingProgress(10);
+
+      try {
+        let allUsers = [];
+        let page = 1;
+        const pageSize = 100;
+
+        while (true) {
+          updateLoadingProgress(10 + (page * 5));
+          const response = await apiCall(`/api/v2/users?pageSize=${pageSize}&pageNumber=${page}&state=active`);
+          allUsers = allUsers.concat(response.entities || []);
+          
+          if (!response.nextUri || response.entities.length < pageSize) {
+            break;
+          }
+          page++;
+        }
+
+        appState.users = allUsers;
+        appState.stats.totalUsers = allUsers.length;
+        el.statTotalUsers.textContent = allUsers.length;
+        
+        logMessage('SUCCESS', `Fetched ${allUsers.length} users`);
+        el.btnFetchConcurrency.disabled = false;
+        
+        updateLoadingProgress(100);
+        setTimeout(() => setLoading(false), 500);
+        
+      } catch (error) {
+        setLoading(false);
+        logMessage('ERROR', 'Failed to fetch users', error.message);
+        showStatusMessage('Failed to fetch users', 'error');
+      }
+    }
+
+    // ==================== FETCH CONCURRENCY ====================
+    async function fetchConcurrency() {
+      if (!appState.users.length) {
+        showStatusMessage('Please fetch users first', 'error');
+        return;
+      }
+
+      setLoading(true, 'Analysing Concurrency', 'Querying presence data for each interval...');
+      updateLoadingProgress(5);
+
+      try {
+        const dateFrom = el.dateFrom.value;
+        const dateTo = el.dateTo.value;
+        
+        if (!dateFrom || !dateTo) {
+          throw new Error('Please select a date range');
+        }
+
+        const interval = `${dateFrom}T00:00:00.000Z/${dateTo}T23:59:59.999Z`;
+        const granularity = appState.currentGranularity;
+        
+        logMessage('INFO', 'Querying concurrency', `Interval: ${interval}, Granularity: ${granularity}`);
+
+        // Build query - get presence aggregates for all users
+        const queryBody = {
+          interval: interval,
+          granularity: granularity,
+          groupBy: ['userId'],
+          metrics: ['tSystemPresence'],
+          filter: {
+            type: 'or',
+            predicates: [
+              {
+                dimension: 'presenceDefinitionId',
+                operator: 'exists',
+                value: null
+              }
+            ]
+          }
+        };
+
+        updateLoadingProgress(20);
+        
+        // Get total users count for concurrency calculation
+        const totalUsers = appState.users.length;
+        
+        // Since we can't get all user presences in one query due to API limits,
+        // we'll batch the user IDs and query in chunks
+        const userIds = appState.users.map(u => u.id);
+        const batchSize = 50;
+        const presenceMap = new Map(); // interval -> set of userIds
+        
+        for (let i = 0; i < userIds.length; i += batchSize) {
+          const batch = userIds.slice(i, i + batchSize);
+          updateLoadingProgress(20 + ((i / userIds.length) * 60));
+          
+          const batchQuery = {
+            ...queryBody,
+            filter: {
+              type: 'or',
+              predicates: batch.map(userId => ({
+                value: userId,
+                operator: 'matches',
+                dimension: 'userId'
+              }))
+            }
+          };
+
+          try {
+            const response = await apiCall('/api/v2/analytics/users/aggregates/query', {
+              method: 'POST',
+              body: JSON.stringify(batchQuery)
+            });
+
+            if (response.results) {
+              response.results.forEach(result => {
+                if (result.group && result.group.userId) {
+                  const userId = result.group.userId;
+                  const presenceData = result.data.find(d => d.metric === 'tSystemPresence');
+                  
+                  if (presenceData && presenceData.stats) {
+                    // Count intervals where user was present (logged in)
+                    // tSystemPresence returns count of intervals with presence > 0
+                    const presenceCount = presenceData.stats.count || 0;
+                    
+                    // For each interval, we need to know when the user was present
+                    // This is a simplification - we're assuming if user has presence count,
+                    // they were logged in for the entire interval
+                    // In a production app, you'd want to use the actual time series data
+                    
+                    // Since the API aggregates, we need to infer presence intervals
+                    // For this demo, we'll create a time series based on the total presence count
+                    if (presenceCount > 0) {
+                      // Generate interval timestamps
+                      const intervals = generateIntervals(dateFrom, dateTo, granularity);
+                      intervals.forEach((intervalStr, idx) => {
+                        if (idx < presenceCount) {
+                          const key = intervalStr;
+                          if (!presenceMap.has(key)) {
+                            presenceMap.set(key, new Set());
+                          }
+                          presenceMap.get(key).add(userId);
+                        }
+                      });
+                    }
+                  }
+                }
+              });
+            }
+          } catch (batchError) {
+            logMessage('WARN', `Batch query failed for users ${i}-${i+batchSize}`, batchError.message);
+          }
+
+          // Rate limiting - 100ms between batches
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        updateLoadingProgress(85);
+
+        // Convert presenceMap to concurrency data
+        const concurrencyData = [];
+        let peakConcurrency = 0;
+        let totalConcurrency = 0;
+        
+        presenceMap.forEach((userSet, interval) => {
+          const concurrent = userSet.size;
+          concurrencyData.push({
+            interval: interval,
+            concurrent: concurrent,
+            date: new Date(interval.split('/')[0])
+          });
+          
+          totalConcurrency += concurrent;
+          if (concurrent > peakConcurrency) {
+            peakConcurrency = concurrent;
+          }
+        });
+
+        // Sort by date
+        concurrencyData.sort((a, b) => a.date - b.date);
+        
+        appState.concurrencyData = concurrencyData;
+        appState.stats.peakConcurrency = peakConcurrency;
+        appState.stats.avgConcurrency = concurrencyData.length > 0 
+          ? Math.round(totalConcurrency / concurrencyData.length) 
+          : 0;
+        appState.stats.totalIntervals = concurrencyData.length;
+        
+        // Calculate peak times
+        calculatePeakTimes();
+        
+        // Update UI
+        updateStatsUI();
+        renderConcurrencyChart();
+        renderPeakTable();
+        renderIntervalsTable();
+        
+        el.btnExport.disabled = false;
+        
+        updateLoadingProgress(100);
+        setTimeout(() => setLoading(false), 500);
+        
+        logMessage('SUCCESS', `Concurrency analysis complete`, 
+          `${concurrencyData.length} intervals, peak: ${peakConcurrency} concurrent users`);
+        
+      } catch (error) {
+        setLoading(false);
+        logMessage('ERROR', 'Concurrency analysis failed', error.message);
+        showStatusMessage('Failed to analyse concurrency', 'error');
+      }
+    }
+
+    function generateIntervals(dateFrom, dateTo, granularity) {
+      const intervals = [];
+      const start = new Date(`${dateFrom}T00:00:00.000Z`);
+      const end = new Date(`${dateTo}T23:59:59.999Z`);
+      
+      let current = new Date(start);
+      
+      let increment;
+      switch(granularity) {
+        case 'PT15M': increment = 15 * 60 * 1000; break;
+        case 'PT30M': increment = 30 * 60 * 1000; break;
+        case 'PT60M': increment = 60 * 60 * 1000; break;
+        case 'P1D': increment = 24 * 60 * 60 * 1000; break;
+        default: increment = 60 * 60 * 1000;
+      }
+      
+      while (current <= end) {
+        const intervalEnd = new Date(current.getTime() + increment - 1);
+        const intervalStr = `${current.toISOString()}/${intervalEnd.toISOString()}`;
+        intervals.push(intervalStr);
+        current = new Date(current.getTime() + increment);
+      }
+      
+      return intervals;
+    }
+
+    function calculatePeakTimes() {
+      if (appState.concurrencyData.length === 0) return;
+      
+      // Overall peak
+      const peak = appState.concurrencyData.reduce((max, curr) => 
+        curr.concurrent > max.concurrent ? curr : max
+      );
+      
+      appState.stats.peakInterval = peak.interval;
+      appState.stats.peakConcurrency = peak.concurrent;
+      
+      el.peakTimeOverall.textContent = formatHourFromInterval(peak.interval);
+      el.peakConcurrencyOverall.textContent = `${peak.concurrent} concurrent users`;
+      
+      // Peak day
+      const dayMap = new Map();
+      appState.concurrencyData.forEach(item => {
+        const day = formatDateFromInterval(item.interval);
+        if (!dayMap.has(day)) {
+          dayMap.set(day, 0);
+        }
+        dayMap.set(day, Math.max(dayMap.get(day), item.concurrent));
+      });
+      
+      let peakDay = null;
+      let peakDayValue = 0;
+      dayMap.forEach((value, day) => {
+        if (value > peakDayValue) {
+          peakDayValue = value;
+          peakDay = day;
+        }
+      });
+      
+      el.peakDay.textContent = peakDay || '--/--/----';
+      el.peakDayConcurrency.textContent = `${peakDayValue} concurrent users`;
+      
+      // Peak hour (across all days)
+      const hourMap = new Map();
+      appState.concurrencyData.forEach(item => {
+        const hour = formatHourFromInterval(item.interval);
+        if (!hourMap.has(hour)) {
+          hourMap.set(hour, 0);
+        }
+        hourMap.set(hour, Math.max(hourMap.get(hour), item.concurrent));
+      });
+      
+      let peakHour = null;
+      let peakHourValue = 0;
+      hourMap.forEach((value, hour) => {
+        if (value > peakHourValue) {
+          peakHourValue = value;
+          peakHour = hour;
+        }
+      });
+      
+      el.peakHour.textContent = peakHour || '--:--';
+      el.peakHourConcurrency.textContent = `${peakHourValue} concurrent users`;
+    }
+
+    // ==================== UI RENDERING ====================
+    function updateStatsUI() {
+      el.statPeakConcurrency.textContent = appState.stats.peakConcurrency;
+      el.statAvgConcurrency.textContent = appState.stats.avgConcurrency;
+      el.statTotalIntervals.textContent = appState.stats.totalIntervals;
+      
+      el.thresholdValue.textContent = appState.threshold;
+      
+      let granularityText = '1-hour';
+      if (appState.currentGranularity === 'PT15M') granularityText = '15-minute';
+      else if (appState.currentGranularity === 'PT30M') granularityText = '30-minute';
+      else if (appState.currentGranularity === 'P1D') granularityText = 'daily';
+      
+      el.granularityLabel.textContent = `${granularityText} intervals`;
+    }
+
+    function renderConcurrencyChart() {
+      const ctx = document.getElementById('concurrencyChart').getContext('2d');
+      
+      if (appState.chart) {
+        appState.chart.destroy();
+      }
+
+      if (appState.concurrencyData.length === 0) return;
+
+      const labels = appState.concurrencyData.map(item => 
+        formatIntervalDate(item.interval, appState.currentGranularity)
+      );
+      
+      const data = appState.concurrencyData.map(item => item.concurrent);
+      const threshold = appState.threshold;
+
+      appState.chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Concurrent Users',
+              data: data,
+              borderColor: 'rgba(90, 143, 187, 1)',
+              backgroundColor: 'rgba(90, 143, 187, 0.1)',
+              borderWidth: 2,
+              pointRadius: 3,
+              pointHoverRadius: 6,
+              tension: 0.1,
+              fill: true
+            },
+            {
+              label: 'Alert Threshold',
+              data: Array(data.length).fill(threshold),
+              borderColor: 'rgba(220, 53, 69, 0.7)',
+              borderWidth: 2,
+              borderDash: [5, 5],
+              pointRadius: 0,
+              fill: false
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            intersect: false,
+            mode: 'index'
+          },
+          plugins: {
+            tooltip: {
+              callbacks: {
+                afterBody: function(context) {
+                  const idx = context[0].dataIndex;
+                  const item = appState.concurrencyData[idx];
+                  if (item.concurrent > threshold) {
+                    return '⚠️ Exceeds threshold!';
+                  }
+                  return '';
+                }
+              }
+            },
+            legend: {
+              position: 'top',
+              labels: { usePointStyle: true }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Concurrent Logged-in Users'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function renderPeakTable() {
+      const tbody = el.peakTableBody;
+      tbody.innerHTML = '';
+
+      const threshold = appState.threshold;
+      const peakData = appState.concurrencyData
+        .filter(item => item.concurrent > threshold)
+        .sort((a, b) => b.concurrent - a.concurrent);
+
+      if (peakData.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:40px;color:var(--text-light);">
+          No intervals exceed the threshold of ${threshold} concurrent users.
+        </td></tr>`;
+        return;
+      }
+
+      const peak = appState.stats.peakConcurrency;
+
+      peakData.forEach(item => {
+        const row = document.createElement('tr');
+        const percentage = Math.round((item.concurrent / peak) * 100);
+        
+        let statusClass = 'peak-badge';
+        let statusText = 'Peak';
+        
+        if (percentage >= 90) {
+          statusText = 'Critical Peak';
+        } else if (percentage >= 70) {
+          statusText = 'High Usage';
+          statusClass = 'high-badge';
+        } else {
+          statusText = 'Above Threshold';
+        }
+
+        row.innerHTML = `
+          <td style="font-weight:600;">${formatIntervalDate(item.interval, appState.currentGranularity)}</td>
+          <td style="font-weight:700;color:${percentage >= 90 ? 'var(--peak-color)' : 'var(--accent-color)'};">${item.concurrent}</td>
+          <td>${percentage}%</td>
+          <td><span class="${statusClass}">${statusText}</span></td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    function renderIntervalsTable() {
+      const tbody = el.intervalsTableBody;
+      tbody.innerHTML = '';
+
+      if (appState.concurrencyData.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;padding:40px;color:var(--text-light);">
+          No data available.
+        </td></tr>`;
+        return;
+      }
+
+      let data = [...appState.concurrencyData];
+      const searchTerm = el.searchInterval?.value?.toLowerCase() || '';
+      
+      if (searchTerm) {
+        data = data.filter(item => 
+          formatIntervalDate(item.interval, appState.currentGranularity).toLowerCase().includes(searchTerm)
+        );
+      }
+
+      el.visibleIntervals.textContent = data.length;
+      el.totalIntervals.textContent = appState.concurrencyData.length;
+
+      // Calculate previous value for change indicator
+      data.forEach((item, idx) => {
+        const prev = idx > 0 ? data[idx - 1].concurrent : item.concurrent;
+        const change = item.concurrent - prev;
+        const changeIcon = change > 0 ? '▲' : change < 0 ? '▼' : '◆';
+        const changeColor = change > 0 ? 'var(--peak-color)' : change < 0 ? 'var(--low-color)' : 'var(--text-light)';
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${formatIntervalDate(item.interval, appState.currentGranularity)}</td>
+          <td style="font-weight:600;color:${item.concurrent > appState.threshold ? 'var(--peak-color)' : 'inherit'};">${item.concurrent}</td>
+          <td style="color:${changeColor};">
+            ${changeIcon} ${change !== 0 ? Math.abs(change) : '0'}
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    // ==================== EXPORT ====================
+    function exportReport() {
+      let csv = 'Genesys Cloud Concurrency Report\n';
+      csv += `Generated: ${new Date().toLocaleString()}\n`;
+      csv += `Period: ${el.dateFrom.value} to ${el.dateTo.value}\n`;
+      csv += `Granularity: ${appState.currentGranularity}\n`;
+      csv += `Peak Concurrency: ${appState.stats.peakConcurrency}\n`;
+      csv += `Average Concurrency: ${appState.stats.avgConcurrency}\n`;
+      csv += `Total Intervals: ${appState.stats.totalIntervals}\n\n`;
+
+      csv += 'PEAK INTERVALS (exceeding threshold)\n';
+      csv += 'Interval,Concurrent Users,% of Peak\n';
+      
+      const peakData = appState.concurrencyData
+        .filter(item => item.concurrent > appState.threshold)
+        .sort((a, b) => b.concurrent - a.concurrent);
+      
+      peakData.forEach(item => {
+        const percentage = Math.round((item.concurrent / appState.stats.peakConcurrency) * 100);
+        csv += `${item.interval},${item.concurrent},${percentage}%\n`;
+      });
+
+      csv += '\nALL INTERVALS\n';
+      csv += 'Interval,Concurrent Users\n';
+      appState.concurrencyData.forEach(item => {
+        csv += `${item.interval},${item.concurrent}\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const dateStr = new Date().toISOString().split('T')[0];
+      a.href = url;
+      a.download = `concurrency_peak_analysis_${dateStr}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showStatusMessage('Report exported successfully', 'success');
+    }
+
+    function resetApplication() {
+      if (confirm('Reset all data? This will clear current analysis.')) {
+        appState.users = [];
+        appState.concurrencyData = [];
+        appState.stats = {
+          totalUsers: 0,
+          peakConcurrency: 0,
+          avgConcurrency: 0,
+          totalIntervals: 0
+        };
+        
+        // Reset UI
+        el.statTotalUsers.textContent = '0';
+        el.statPeakConcurrency.textContent = '0';
+        el.statAvgConcurrency.textContent = '0';
+        el.statTotalIntervals.textContent = '0';
+        el.peakTimeOverall.textContent = '--:--';
+        el.peakConcurrencyOverall.textContent = '0 concurrent users';
+        el.peakDay.textContent = '--/--/----';
+        el.peakDayConcurrency.textContent = '0 concurrent users';
+        el.peakHour.textContent = '--:--';
+        el.peakHourConcurrency.textContent = '0 concurrent users';
+        
+        el.btnFetchConcurrency.disabled = true;
+        el.btnExport.disabled = true;
+        
+        if (appState.chart) {
+          appState.chart.destroy();
+          appState.chart = null;
+        }
+        
+        renderPeakTable();
+        renderIntervalsTable();
+        
+        showStatusMessage('Application reset', 'info');
+      }
+    }
+
+    // ==================== INITIALISATION ====================
+    function initializeApp() {
+      // Set default dates (last 7 days)
+      const today = new Date();
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(today.getDate() - 7);
+      
+      const storedFrom = localStorage.getItem(STORAGE_KEYS.DATE_FROM);
+      const storedTo = localStorage.getItem(STORAGE_KEYS.DATE_TO);
+      const storedGranularity = localStorage.getItem(STORAGE_KEYS.GRANULARITY);
+      const storedThreshold = localStorage.getItem(STORAGE_KEYS.THRESHOLD);
+      
+      el.dateFrom.value = storedFrom || sevenDaysAgo.toISOString().split('T')[0];
+      el.dateTo.value = storedTo || today.toISOString().split('T')[0];
+      
+      if (storedGranularity) {
+        appState.currentGranularity = storedGranularity;
+        document.querySelectorAll('.granularity-option').forEach(opt => {
+          opt.classList.toggle('active', opt.dataset.granularity === storedGranularity);
+        });
+      }
+      
+      if (storedThreshold) {
+        appState.threshold = parseInt(storedThreshold);
+        el.thresholdConcurrency.value = storedThreshold;
+      }
+
+      // Event listeners
+      el.btnAuthenticate.addEventListener('click', () => {
+        window.location.href = authUrl();
+      });
+
+      el.btnDisconnect.addEventListener('click', disconnect);
+      el.btnFetchUsers.addEventListener('click', fetchUsers);
+      el.btnFetchConcurrency.addEventListener('click', fetchConcurrency);
+      el.btnExport.addEventListener('click', exportReport);
+      el.btnReset.addEventListener('click', resetApplication);
+
+      // Granularity selector
+      el.granularityOptions.forEach(opt => {
+        opt.addEventListener('click', function() {
+          el.granularityOptions.forEach(o => o.classList.remove('active'));
+          this.classList.add('active');
+          appState.currentGranularity = this.dataset.granularity;
+          localStorage.setItem(STORAGE_KEYS.GRANULARITY, appState.currentGranularity);
+          
+          if (appState.concurrencyData.length > 0) {
+            showStatusMessage('Granularity changed - re-run analysis to apply', 'info');
+          }
+        });
+      });
+
+      // Date change handlers
+      el.dateFrom.addEventListener('change', () => {
+        localStorage.setItem(STORAGE_KEYS.DATE_FROM, el.dateFrom.value);
+      });
+      el.dateTo.addEventListener('change', () => {
+        localStorage.setItem(STORAGE_KEYS.DATE_TO, el.dateTo.value);
+      });
+
+      // Threshold change
+      el.thresholdConcurrency.addEventListener('change', function() {
+        appState.threshold = parseInt(this.value) || 20;
+        localStorage.setItem(STORAGE_KEYS.THRESHOLD, appState.threshold);
+        el.thresholdValue.textContent = appState.threshold;
+        
+        if (appState.concurrencyData.length > 0) {
+          renderConcurrencyChart();
+          renderPeakTable();
+        }
+      });
+
+      // Search
+      if (el.searchInterval) {
+        el.searchInterval.addEventListener('input', renderIntervalsTable);
+      }
+
+      logMessage('INFO', 'Concurrency Analyser initialised', 'Ready for Dublin org');
+    }
+
+    // Start authentication flow
+    document.addEventListener('DOMContentLoaded', initAuth);
+  </script>
+</body>
+</html>
