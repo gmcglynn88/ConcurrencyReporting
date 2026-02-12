@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Genesys Cloud - Concurrency & Peak Time Report</title>
+  <title>Genesys Cloud - Concurrency & Peak Time Analyser (London)</title>
   <link href="https://fonts.googleapis.com/css2?family=Aptos:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -205,6 +205,16 @@
     .brand { display: flex; align-items: center; gap: 15px; }
     .brand-logo { height: 40px; object-fit: contain; }
     .divider { border: none; height: 1px; background: var(--border-color); margin: 0; }
+    .region-badge {
+      background: var(--info);
+      color: white;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 12px;
+      display: inline-block;
+    }
   </style>
 </head>
 <body>
@@ -214,9 +224,10 @@
         <img src="https://raw.githubusercontent.com/gmcglynn88/TimeoffApp/main/YourTime%20Logo_WEM_White%20Reversed.png" alt="Your Time" class="brand-logo">
         <div class="brand-text">
           <div class="brand-main">
-            <h1>📊 Concurrency & Peak Time Report</h1>
+            <h1>📊 Concurrency & Peak Time Analyser</h1>
+            <span class="region-badge">🇬🇧 LONDON</span>
           </div>
-          <div class="subtitle">Genesys Cloud - Concurrency Analysis</div>
+          <div class="subtitle">Genesys Cloud - London Region (apps.euw2.pure.cloud)</div>
         </div>
       </div>
       <div class="connection-status" id="connectionStatus">
@@ -283,7 +294,7 @@
               
               <div class="info-box" style="margin-top:24px;">
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-                  <span style="background:var(--primary-color);color:white;padding:2px 12px;border-radius:20px;font-size:12px;">How it works</span>
+                  <span style="background:var(--primary-color);color:white;padding:2px 12px;border-radius:20px;font-size:12px;">London Region</span>
                 </div>
                 <ul style="list-style-type:none;padding-left:0;">
                   <li style="margin-bottom:8px;">✓ Fetches all active users</li>
@@ -291,6 +302,7 @@
                   <li style="margin-bottom:8px;">✓ Splits long date ranges into 7-day windows</li>
                   <li style="margin-bottom:8px;">✓ Calculates concurrent logged-in users</li>
                   <li style="margin-bottom:8px;">✓ Identifies peak usage times automatically</li>
+                  <li>✓ Pure concurrency analysis - no interacting hours</li>
                 </ul>
               </div>
             </div>
@@ -432,26 +444,26 @@
   <div class="status-container" id="statusContainer"></div>
 
   <script>
-    // ==================== CONFIGURATION ====================
+    // ==================== LONDON REGION CONFIGURATION ====================
     const CLIENT_ID = 'fe305808-b368-4547-8af9-325d28d552bb';
-    const REDIRECT_URI = 'https://gmcglynn88.github.io/ConcurrencyReporting/';
+    const REDIRECT_URI = 'https://gmcglynn88.github.io/ConcurrencyReporting-London/'; // Update this for London version
     
     const ENVIRONMENTS = {
-      'eu-west-1': { 
-        name: 'EU West (Dublin)', 
-        api: 'https://api.mypurecloud.ie', 
-        login: 'https://login.mypurecloud.ie' 
+      'eu-west-2': { 
+        name: 'London (EU West 2)', 
+        api: 'https://api.euw2.pure.cloud', 
+        login: 'https://login.euw2.pure.cloud' 
       }
     };
 
     const STORAGE_KEYS = {
-      ENVIRONMENT: 'gc_concurrency_env',
-      TOKEN: 'gc_concurrency_token',
-      TOKEN_EXPIRY: 'gc_concurrency_expiry',
-      DATE_FROM: 'gc_concurrency_date_from',
-      DATE_TO: 'gc_concurrency_date_to',
-      GRANULARITY: 'gc_concurrency_granularity',
-      THRESHOLD: 'gc_concurrency_threshold'
+      ENVIRONMENT: 'gc_concurrency_london_env',
+      TOKEN: 'gc_concurrency_london_token',
+      TOKEN_EXPIRY: 'gc_concurrency_london_expiry',
+      DATE_FROM: 'gc_concurrency_london_date_from',
+      DATE_TO: 'gc_concurrency_london_date_to',
+      GRANULARITY: 'gc_concurrency_london_granularity',
+      THRESHOLD: 'gc_concurrency_london_threshold'
     };
 
     // ==================== APP STATE ====================
@@ -459,7 +471,7 @@
       isConnected: false,
       token: null,
       tokenExpiry: null,
-      environment: ENVIRONMENTS['eu-west-1'],
+      environment: ENVIRONMENTS['eu-west-2'],
       users: [],
       concurrencyData: [],
       stats: {
@@ -532,10 +544,10 @@
         appState.token = token;
         appState.tokenExpiry = tokenExpiry;
         appState.isConnected = true;
-        appState.environment = ENVIRONMENTS['eu-west-1'];
+        appState.environment = ENVIRONMENTS['eu-west-2'];
         localStorage.setItem(STORAGE_KEYS.TOKEN, token);
         localStorage.setItem(STORAGE_KEYS.TOKEN_EXPIRY, tokenExpiry.toString());
-        localStorage.setItem(STORAGE_KEYS.ENVIRONMENT, 'eu-west-1');
+        localStorage.setItem(STORAGE_KEYS.ENVIRONMENT, 'eu-west-2');
         return true;
       } catch (e) {
         console.error('Failed to save credentials:', e);
@@ -554,7 +566,7 @@
             appState.token = token;
             appState.tokenExpiry = expiry;
             appState.isConnected = true;
-            appState.environment = ENVIRONMENTS['eu-west-1'];
+            appState.environment = ENVIRONMENTS['eu-west-2'];
             return true;
           } else {
             localStorage.removeItem(STORAGE_KEYS.TOKEN);
@@ -588,11 +600,11 @@
     }
 
     function authUrl() {
-      return `${ENVIRONMENTS['eu-west-1'].login}/oauth/authorize?client_id=${encodeURIComponent(CLIENT_ID)}&response_type=token&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+      return `${ENVIRONMENTS['eu-west-2'].login}/oauth/authorize?client_id=${encodeURIComponent(CLIENT_ID)}&response_type=token&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
     }
 
     function initAuth() {
-      console.log("Initializing authentication...");
+      console.log("Initializing London region authentication...");
       const { token, error, errorDescription, expiresIn } = parseTokenFromHash();
       if (window.location.hash) {
         history.replaceState(null, '', window.location.pathname + window.location.search);
@@ -601,7 +613,7 @@
         console.log("Token found in URL, authenticating...");
         saveCredentials(token, expiresIn || '3600');
         updateConnectionStatus(true);
-        showStatusMessage('✅ Authentication successful', 'success');
+        showStatusMessage('✅ Authentication successful - London Region', 'success');
         return;
       }
       if (error) {
@@ -611,10 +623,10 @@
       if (loadStoredCredentials()) {
         console.log("Stored credentials found, authenticating...");
         updateConnectionStatus(true);
-        showStatusMessage('✅ Authenticated with stored credentials', 'success');
+        showStatusMessage('✅ Authenticated with stored credentials - London Region', 'success');
         return;
       }
-      console.log("No valid token found, redirecting to auth...");
+      console.log("No valid token found, redirecting to London auth...");
       window.location.href = authUrl();
     }
 
@@ -650,7 +662,7 @@
         el.statusIndicator.style.background = connected ? 'var(--success)' : 'var(--danger)';
       }
       if (el.statusText) {
-        el.statusText.textContent = connected ? 'Connected to Dublin' : 'Not Connected';
+        el.statusText.textContent = connected ? 'Connected to London (euw2)' : 'Not Connected';
         el.statusText.style.color = connected ? 'var(--success)' : 'var(--danger)';
       }
       if (el.btnFetchUsers) {
@@ -751,7 +763,7 @@
         showStatusMessage('Please connect first', 'error');
         return;
       }
-      setLoading(true, 'Fetching Users', 'Retrieving all active users from Genesys Cloud Dublin...');
+      setLoading(true, 'Fetching Users', 'Retrieving all active users from Genesys Cloud London...');
       updateLoadingProgress(10);
       try {
         let allUsers = [];
@@ -768,7 +780,7 @@
         appState.users = allUsers;
         appState.stats.totalUsers = allUsers.length;
         el.statTotalUsers.textContent = allUsers.length;
-        showStatusMessage(`✅ Fetched ${allUsers.length} active users`, 'success');
+        showStatusMessage(`✅ Fetched ${allUsers.length} active users from London`, 'success');
         el.btnFetchConcurrency.disabled = false;
         updateLoadingProgress(100);
         setTimeout(() => setLoading(false), 500);
@@ -963,7 +975,7 @@
         updateLoadingProgress(100);
         setTimeout(() => setLoading(false), 500);
         
-        showStatusMessage(`✅ Concurrency analysis complete - Peak: ${peakConcurrency} concurrent users over ${concurrencyData.length} intervals`, 'success');
+        showStatusMessage(`✅ London concurrency analysis complete - Peak: ${peakConcurrency} concurrent users over ${concurrencyData.length} intervals`, 'success');
         
       } catch (error) {
         setLoading(false);
@@ -1117,9 +1129,9 @@
     // ==================== EXPORT ====================
     function exportReport() {
       if (!appState.concurrencyData.length) { showStatusMessage('No data to export', 'error'); return; }
-      let csv = 'Genesys Cloud Concurrency Report\n';
+      let csv = 'Genesys Cloud Concurrency Report - London Region\n';
       csv += `Generated: ${new Date().toLocaleString()}\n`;
-      csv += `Environment: Dublin (mypurecloud.ie)\n`;
+      csv += `Environment: London (euw2.pure.cloud)\n`;
       csv += `Period: ${el.dateFrom.value} to ${el.dateTo.value}\n`;
       csv += `Granularity: ${appState.currentGranularity}\n`;
       csv += `Alert Threshold: ${appState.threshold} concurrent users\n`;
@@ -1142,9 +1154,9 @@
       const a = document.createElement('a');
       const dateStr = new Date().toISOString().split('T')[0];
       a.href = url;
-      a.download = `genesys_concurrency_peak_report_${dateStr}.csv`;
+      a.download = `genesys_concurrency_london_report_${dateStr}.csv`;
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-      showStatusMessage('✅ Report exported successfully', 'success');
+      showStatusMessage('✅ London report exported successfully', 'success');
     }
 
     function resetApplication() {
@@ -1164,7 +1176,7 @@
 
     // ==================== INITIALISATION ====================
     function initializeApp() {
-      console.log("Initializing app...");
+      console.log("Initializing London app...");
       const last7Days = getLast7Days();
       if (el.dateFrom) el.dateFrom.value = last7Days.from;
       if (el.dateTo) el.dateTo.value = last7Days.to;
@@ -1218,7 +1230,7 @@
 
     // ==================== START ====================
     window.onload = function() {
-      console.log("Page loaded, initializing...");
+      console.log("London region page loaded, initializing...");
       initAuth();
       initializeApp();
     };
