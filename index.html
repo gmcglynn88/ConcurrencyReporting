@@ -215,6 +215,25 @@
       margin-left: 12px;
       display: inline-block;
     }
+    .auth-debug {
+      margin-top: 20px;
+      padding: 15px;
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+      border-radius: 8px;
+      color: #721c24;
+      display: none;
+    }
+    .auth-debug.visible {
+      display: block;
+    }
+    .manual-auth {
+      margin-top: 20px;
+      padding: 20px;
+      background: var(--light-bg);
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
   </style>
 </head>
 <body>
@@ -236,6 +255,12 @@
       </div>
     </header>
     <hr class="divider">
+
+    <!-- Auth Debug Panel - Will show if there are issues -->
+    <div id="authDebug" class="auth-debug">
+      <strong>⚠️ Authentication Debug Info:</strong>
+      <div id="authDebugMessage"></div>
+    </div>
 
     <div class="main-content">
       <div class="container" style="width:100%;padding:20px;">
@@ -292,6 +317,22 @@
                 🔄 Reset Session
               </button>
               
+              <!-- Manual Authentication Button -->
+              <button id="btnManualAuth" class="btn-block" style="margin-bottom:16px;background:var(--info);">
+                🔐 Re-authenticate
+              </button>
+              
+              <div class="info-box" style="margin-top:24px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                  <span style="background:var(--primary-color);color:white;padding:2px 12px;border-radius:20px;font-size:12px;">OAuth Settings</span>
+                </div>
+                <div style="font-size:12px;">
+                  <strong>Client ID:</strong> d968eca4-cdb7-4b90-91b1-4628b5bb679e<br>
+                  <strong>Redirect URI:</strong> <span id="currentRedirectUri"></span><br>
+                  <strong>Environment:</strong> login.euw2.pure.cloud
+                </div>
+              </div>
+
               <div class="info-box" style="margin-top:24px;">
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
                   <span style="background:var(--primary-color);color:white;padding:2px 12px;border-radius:20px;font-size:12px;">London Region</span>
@@ -446,7 +487,10 @@
   <script>
     // ==================== LONDON REGION CONFIGURATION ====================
     const CLIENT_ID = 'd968eca4-cdb7-4b90-91b1-4628b5bb679e';
-    const REDIRECT_URI = 'https://gmcglynn88.github.io/ConcurrencyReporting-London/'; // Update this for London version
+    
+    // CRITICAL: This MUST match EXACTLY what's in your Genesys Cloud OAuth client configuration
+    // Including trailing slash or no trailing slash
+    const REDIRECT_URI = window.location.origin + window.location.pathname;
     
     const ENVIRONMENTS = {
       'eu-west-2': { 
@@ -514,6 +558,7 @@
       btnFetchConcurrency: document.getElementById('btnFetchConcurrency'),
       btnExport: document.getElementById('btnExport'),
       btnReset: document.getElementById('btnReset'),
+      btnManualAuth: document.getElementById('btnManualAuth'),
       searchInterval: document.getElementById('searchInterval'),
       visibleIntervals: document.getElementById('visibleIntervals'),
       totalIntervals: document.getElementById('totalIntervals'),
@@ -522,8 +567,16 @@
       loadingSubtext: document.getElementById('loadingSubtext'),
       loadingProgressFill: document.getElementById('loadingProgressFill'),
       statusContainer: document.getElementById('statusContainer'),
-      concurrencyChart: document.getElementById('concurrencyChart')
+      concurrencyChart: document.getElementById('concurrencyChart'),
+      authDebug: document.getElementById('authDebug'),
+      authDebugMessage: document.getElementById('authDebugMessage'),
+      currentRedirectUri: document.getElementById('currentRedirectUri')
     };
+
+    // Display current redirect URI
+    if (el.currentRedirectUri) {
+      el.currentRedirectUri.textContent = REDIRECT_URI;
+    }
 
     // ==================== AUTHENTICATION ====================
     function parseTokenFromHash() {
@@ -536,6 +589,14 @@
         errorDescription: params.get('error_description'),
         expiresIn: params.get('expires_in')
       };
+    }
+
+    function showAuthDebug(message) {
+      if (el.authDebug && el.authDebugMessage) {
+        el.authDebug.classList.add('visible');
+        el.authDebugMessage.innerHTML = message;
+        console.error('Auth Debug:', message);
+      }
     }
 
     function saveCredentials(token, expiresIn) {
@@ -600,15 +661,25 @@
     }
 
     function authUrl() {
-      return `${ENVIRONMENTS['eu-west-2'].login}/oauth/authorize?client_id=${encodeURIComponent(CLIENT_ID)}&response_type=token&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+      // Ensure no double slashes or encoding issues
+      const baseUrl = ENVIRONMENTS['eu-west-2'].login;
+      const clientId = encodeURIComponent(CLIENT_ID);
+      const redirectUri = encodeURIComponent(REDIRECT_URI);
+      return `${baseUrl}/oauth/authorize?client_id=${clientId}&response_type=token&redirect_uri=${redirectUri}`;
     }
 
     function initAuth() {
       console.log("Initializing London region authentication...");
+      console.log("Current URL:", window.location.href);
+      console.log("Redirect URI configured as:", REDIRECT_URI);
+      
       const { token, error, errorDescription, expiresIn } = parseTokenFromHash();
+      
+      // Clear the hash to prevent reprocessing on refresh
       if (window.location.hash) {
         history.replaceState(null, '', window.location.pathname + window.location.search);
       }
+      
       if (token) {
         console.log("Token found in URL, authenticating...");
         saveCredentials(token, expiresIn || '3600');
@@ -616,18 +687,35 @@
         showStatusMessage('✅ Authentication successful - London Region', 'success');
         return;
       }
+      
       if (error) {
         console.log("Auth error:", error, errorDescription);
+        showAuthDebug(`Error: ${error}<br>Description: ${errorDescription}<br>Redirect URI: ${REDIRECT_URI}<br>Please verify this EXACT URI is registered in Genesys Cloud OAuth.`);
         showStatusMessage(`❌ Authentication failed: ${errorDescription || error}`, 'error');
       }
+      
       if (loadStoredCredentials()) {
         console.log("Stored credentials found, authenticating...");
         updateConnectionStatus(true);
         showStatusMessage('✅ Authenticated with stored credentials - London Region', 'success');
         return;
       }
-      console.log("No valid token found, redirecting to London auth...");
-      window.location.href = authUrl();
+      
+      // Only auto-redirect if we're not already on the page with a hash
+      if (!token && !error && !loadStoredCredentials()) {
+        console.log("No valid token found, redirecting to London auth...");
+        const url = authUrl();
+        console.log("Redirecting to:", url);
+        window.location.href = url;
+      }
+    }
+
+    // Manual authentication trigger
+    function manualAuth() {
+      clearCredentials();
+      const url = authUrl();
+      console.log("Manual auth redirect:", url);
+      window.location.href = url;
     }
 
     // ==================== UTILITIES ====================
@@ -1186,6 +1274,7 @@
       if (el.btnFetchConcurrency) { el.btnFetchConcurrency.addEventListener('click', fetchConcurrency); }
       if (el.btnExport) { el.btnExport.addEventListener('click', exportReport); }
       if (el.btnReset) { el.btnReset.addEventListener('click', resetApplication); }
+      if (el.btnManualAuth) { el.btnManualAuth.addEventListener('click', manualAuth); }
 
       if (el.granularityOptions) {
         el.granularityOptions.forEach(opt => {
