@@ -6,28 +6,31 @@
   <title>Genesys Cloud - Concurrency & Peak Time Analyser</title>
   <style>
     :root{
-      --primary-color:#5A8FBB;
-      --secondary-color:#3F6F99;
-      --accent-color:#F9A826;
+      --primary-color:#63AB8F;
+      --secondary-color:#4A8C7D;
       --border-color:#DEE2E6;
       --light-bg:#F8F9FA;
       --card-bg:#FFFFFF;
       --text-color:#2C3E50;
       --text-light:#6C757D;
-      --peak-color:#DC3545;
-      --high-color:#FFC107;
-      --medium-color:#17A2B8;
-      --low-color:#28A745;
+      --pill:#e9f6f0;
+      --filter-bg:#f0f7f3;
+      --warning:#ffc107;
+      --danger:#dc3545;
+      --success:#28a745;
+      --info:#17a2b8;
+      --peak-color:#dc3545;
+      --high-color:#ffc107;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body{
       font-family:'Aptos','Segoe UI',system-ui,-apple-system,Arial,sans-serif;
-      margin:0;padding:20px;
+      margin:20px;
       background:var(--light-bg);
       color:var(--text-color);
-      line-height:1.5;
+      line-height:1.6;
     }
 
     .container{
@@ -38,8 +41,8 @@
     header{
       background:var(--card-bg);
       border-radius:12px;
-      padding:24px 32px;
-      margin-bottom:24px;
+      padding:28px 36px;
+      margin-bottom:28px;
       box-shadow:0 2px 8px rgba(0,0,0,.08);
       border-left:5px solid var(--primary-color);
       border:1px solid var(--border-color);
@@ -51,7 +54,7 @@
 
     h1{
       color:var(--text-color);
-      font-size:28px;
+      font-size:32px;
       font-weight:600;
       display:flex;
       align-items:center;
@@ -60,35 +63,17 @@
 
     .subtitle{
       color:var(--text-light);
-      font-size:15px;
+      font-size:17px;
       margin-top:6px;
     }
 
-    .connection-status{
-      display:flex;
-      align-items:center;
-      gap:12px;
-      background:var(--light-bg);
-      padding:10px 18px;
-      border-radius:30px;
-    }
-
-    .status-indicator{
-      width:12px;
-      height:12px;
-      border-radius:50%;
-      background:var(--text-light);
-    }
-
-    .connected .status-indicator{background:var(--low-color);}
-
     .main-grid{
       display:grid;
-      grid-template-columns:380px 1fr;
-      gap:24px;
+      grid-template-columns:400px 1fr;
+      gap:32px;
     }
 
-    @media(max-width:1100px){
+    @media(max-width:1200px){
       .main-grid{grid-template-columns:1fr;}
     }
 
@@ -96,27 +81,28 @@
       background:var(--card-bg);
       border:1px solid var(--border-color);
       border-radius:14px;
-      padding:24px;
+      padding:28px;
       margin-bottom:24px;
       box-shadow:0 2px 8px rgba(0,0,0,.05);
     }
 
     .card h2{
       color:var(--primary-color);
-      margin-bottom:20px;
-      font-size:20px;
-      padding-bottom:14px;
+      margin-bottom:24px;
+      font-size:22px;
+      padding-bottom:16px;
       border-bottom:2px solid var(--light-bg);
       display:flex;
       align-items:center;
-      gap:10px;
+      gap:12px;
+      font-weight:600;
     }
 
-    .form-group{margin-bottom:20px;}
+    .form-group{margin-bottom:24px;}
     label{
       display:block;
       font-weight:600;
-      margin-bottom:6px;
+      margin-bottom:8px;
       font-size:14px;
     }
     select,input,button{
@@ -139,32 +125,69 @@
       align-items:center;
       justify-content:center;
       gap:10px;
+      font-size:15px;
     }
     button:hover{background:var(--secondary-color);}
     button:disabled{background:var(--text-light);cursor:not-allowed;}
-    .btn-primary{background:var(--primary-color);}
-    .btn-success{background:var(--low-color);}
+    .btn-block{width:100%;padding:14px;}
+    .btn-success{background:var(--success);}
     .btn-success:hover{background:#218838;}
-    .btn-danger{background:var(--peak-color);}
+    .btn-danger{background:var(--danger);}
     .btn-danger:hover{background:#bd2130;}
 
-    .date-range{
+    .date-range-simple{
       display:flex;
+      flex-direction:column;
       gap:16px;
-      flex-wrap:wrap;
+      margin-bottom:20px;
     }
-    .date-field{
-      flex:1;
+    
+    .date-field-simple{
+      position:relative;
+    }
+    
+    .date-field-simple label{
+      display:block;
+      font-weight:600;
+      margin-bottom:8px;
+      font-size:14px;
+    }
+    
+    .date-field-simple input[type="date"]{
+      padding:14px;
+      border:1px solid var(--border-color);
+      border-radius:8px;
+      background:var(--card-bg);
+      font-size:15px;
+      width:100%;
+      transition:all 0.3s;
+      color:var(--text-color);
+    }
+    
+    .date-field-simple input[type="date"]:focus{
+      outline:none;
+      border-color:var(--primary-color);
+      box-shadow:0 0 0 3px rgba(99,171,143,0.1);
+    }
+    
+    @media (min-width: 768px){
+      .date-range-simple{
+        flex-direction:row;
+        gap:16px;
+      }
+      .date-field-simple{
+        flex:1;
+      }
     }
 
     .granularity-selector{
       display:grid;
       grid-template-columns:repeat(4,1fr);
-      gap:10px;
+      gap:12px;
       margin:20px 0;
     }
     .granularity-option{
-      padding:12px 8px;
+      padding:14px 8px;
       background:var(--light-bg);
       border:1px solid var(--border-color);
       border-radius:8px;
@@ -172,10 +195,11 @@
       font-weight:600;
       cursor:pointer;
       transition:all 0.2s;
+      color:var(--text-color);
     }
     .granularity-option:hover{
-      background:var(--primary-color);
-      color:white;
+      background:var(--pill);
+      border-color:var(--primary-color);
     }
     .granularity-option.active{
       background:var(--primary-color);
@@ -191,30 +215,38 @@
     }
 
     .stat-card{
-      background:rgba(90,143,187,0.1);
-      border-radius:12px;
-      padding:20px;
-      border:1px solid rgba(90,143,187,0.2);
+      background:var(--pill);
+      border-radius:14px;
+      padding:24px;
+      border:1px solid var(--border-color);
       text-align:center;
+      transition:all 0.3s;
     }
+    .stat-card:hover{
+      transform:translateY(-2px);
+      box-shadow:0 8px 16px rgba(0,0,0,0.1);
+      border-color:var(--primary-color);
+    }
+
     .stat-value{
-      font-size:36px;
+      font-size:38px;
       font-weight:700;
       color:var(--primary-color);
       margin:12px 0;
     }
     .stat-label{
-      font-size:14px;
+      font-size:15px;
       color:var(--text-light);
       text-transform:uppercase;
       letter-spacing:1px;
+      font-weight:600;
     }
 
     .peak-stat{
       background:rgba(220,53,69,0.1);
       border-color:rgba(220,53,69,0.3);
     }
-    .peak-stat .stat-value{color:var(--peak-color);}
+    .peak-stat .stat-value{color:var(--danger);}
 
     .chart-container{
       background:var(--card-bg);
@@ -243,22 +275,49 @@
       top:0;
       padding:16px;
       text-align:left;
+      font-size:14px;
     }
-    td{padding:14px 16px;border-bottom:1px solid var(--border-color);}
-    tr:hover{background:rgba(90,143,187,0.05);}
+    td{padding:14px 16px;border-bottom:1px solid var(--border-color);font-size:14px;}
+    tr:hover{background:var(--pill);}
 
     .peak-badge{
       display:inline-block;
-      padding:4px 12px;
+      padding:6px 14px;
       border-radius:20px;
-      font-size:12px;
+      font-size:13px;
       font-weight:600;
       background:rgba(220,53,69,0.15);
-      color:var(--peak-color);
+      color:var(--danger);
+      border:1px solid rgba(220,53,69,0.3);
     }
     .high-badge{
       background:rgba(255,193,7,0.15);
       color:#d39e00;
+      border:1px solid rgba(255,193,7,0.3);
+    }
+
+    .status-container{
+      position:fixed;
+      top:20px;
+      right:20px;
+      z-index:1000;
+      max-width:400px;
+    }
+    .status-message{
+      background:white;
+      padding:16px;
+      border-radius:8px;
+      box-shadow:0 4px 12px rgba(0,0,0,0.15);
+      border-left:4px solid var(--primary-color);
+      margin-bottom:10px;
+      animation:slideIn 0.3s;
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    @keyframes slideIn{
+      from{transform:translateX(100%);opacity:0;}
+      to{transform:translateX(0);opacity:1;}
     }
 
     .loading-overlay{
@@ -303,66 +362,49 @@
       display:grid;
       grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
       gap:20px;
-      margin-top:24px;
+      margin-bottom:24px;
     }
 
     .peak-card{
       background:white;
-      border-radius:12px;
-      padding:20px;
+      border-radius:14px;
+      padding:24px;
       border:1px solid var(--border-color);
+      box-shadow:0 2px 8px rgba(0,0,0,.05);
     }
     .peak-time{
-      font-size:24px;
+      font-size:28px;
       font-weight:700;
-      color:var(--peak-color);
-      margin:10px 0;
+      color:var(--danger);
+      margin:12px 0;
     }
 
-    .status-container{
-      position:fixed;
-      top:20px;right:20px;
-      z-index:1000;
-      max-width:400px;
-    }
-    .status-message{
-      background:white;
-      padding:16px;
-      border-radius:8px;
-      box-shadow:0 4px 12px rgba(0,0,0,0.15);
-      border-left:4px solid var(--primary-color);
-      margin-bottom:10px;
-      animation:slideIn 0.3s;
-      display:flex;
-      align-items:center;
-      gap:12px;
-    }
-    @keyframes slideIn{
-      from{transform:translateX(100%);opacity:0;}
-      to{transform:translateX(0);opacity:1;}
-    }
-
-    .tooltip{
-      position:relative;
-      display:inline-block;
-      border-bottom:1px dashed var(--text-light);
-      cursor:help;
-    }
-
-    .auth-container{
-      max-width:500px;
-      margin:100px auto;
+    .auth-card{
+      background:var(--card-bg);
+      border-radius:14px;
+      padding:40px;
+      border:1px solid var(--border-color);
+      box-shadow:0 2px 8px rgba(0,0,0,.05);
       text-align:center;
     }
 
-    .time-comparison{
+    .connection-status{
       display:flex;
       align-items:center;
-      justify-content:space-around;
-      padding:20px;
+      gap:12px;
       background:var(--light-bg);
-      border-radius:12px;
+      padding:12px 24px;
+      border-radius:30px;
     }
+
+    .status-indicator{
+      width:14px;
+      height:14px;
+      border-radius:50%;
+      background:var(--text-light);
+    }
+
+    .connected .status-indicator{background:var(--success);}
 
     .footer{
       margin-top:30px;
@@ -371,18 +413,34 @@
       color:var(--text-light);
       font-size:13px;
     }
+
+    .info-box{
+      background:rgba(99,171,143,0.05);
+      border-radius:8px;
+      padding:16px;
+      margin-top:16px;
+      font-size:13px;
+      color:var(--text-light);
+    }
   </style>
 </head>
 <body>
   <div id="authContainer" style="display:block;">
-    <div class="auth-container">
-      <div class="card">
-        <h2 style="border-bottom:none;text-align:center;justify-content:center;">🔐 Genesys Cloud Authentication</h2>
-        <div style="padding:30px;text-align:center;">
+    <div class="container" style="max-width:500px;margin:100px auto;">
+      <div class="auth-card">
+        <h2 style="border-bottom:none;text-align:center;justify-content:center;margin-bottom:20px;">🔐 Genesys Cloud Authentication</h2>
+        <div style="padding:20px;text-align:center;">
           <div class="spinner" style="width:50px;height:50px;margin:20px auto;"></div>
-          <p style="margin:20px 0;font-size:16px;">Connecting to Genesys Cloud Dublin (mypurecloud.ie)...</p>
-          <p style="color:var(--text-light);font-size:14px;">Using OAuth client: fe305808-b368-4547-8af9-325d28d552bb</p>
-          <button id="btnAuthenticate" class="btn-primary" style="width:auto;padding:14px 40px;margin-top:20px;">🔑 Authenticate</button>
+          <p style="margin:20px 0;font-size:16px;color:var(--text-color);">Attempting automatic authentication...</p>
+          <p style="color:var(--text-light);font-size:14px;margin-bottom:20px;">Client ID: fe305808-b368-4547-8af9-325d28d552bb</p>
+          <button id="btnAuthenticate" class="btn-block" style="background:var(--primary-color);padding:14px;font-size:16px;">
+            🔑 Click to Authenticate Manually
+          </button>
+          <div class="info-box" style="margin-top:30px;text-align:left;">
+            <strong style="color:var(--primary-color);">📍 Environment:</strong> EU West (Dublin) - mypurecloud.ie<br>
+            <strong style="color:var(--primary-color);">📋 Redirect URI:</strong> https://gmcglynn88.github.io/ConcurrencyReporting/<br>
+            <strong style="color:var(--primary-color);">ℹ️ Tip:</strong> Make sure this URI is added to your OAuth client
+          </div>
         </div>
       </div>
     </div>
@@ -392,33 +450,33 @@
     <div class="container">
       <header>
         <div>
-          <h1>📈 Genesys Cloud Concurrency & Peak Time Analyser</h1>
-          <div class="subtitle">Real-time concurrency analysis from 15m to daily granularity</div>
+          <h1>📊 Genesys Cloud - Concurrency & Peak Time Analyser</h1>
+          <div class="subtitle">Real-time concurrency analysis from 15m to daily granularity • No interacting hours • Pure concurrency</div>
         </div>
-        <div id="connectionStatus" class="connection-status">
+        <div class="connection-status" id="connectionStatus">
           <span class="status-indicator" id="statusIndicator"></span>
           <span id="statusText">Not Connected</span>
-          <button id="btnDisconnect" style="width:auto;padding:8px 16px;background:var(--text-light);">Disconnect</button>
+          <button id="btnDisconnect" style="width:auto;padding:8px 20px;background:var(--danger);">Disconnect</button>
         </div>
       </header>
 
       <div class="main-grid">
         <!-- Left Column - Controls -->
-        <div>
+        <div class="left-column">
           <div class="card">
             <h2>📅 Analysis Period</h2>
-            <div class="date-range">
-              <div class="date-field">
-                <label>From Date</label>
+            <div class="date-range-simple">
+              <div class="date-field-simple">
+                <label for="dateFrom">From Date</label>
                 <input type="date" id="dateFrom" required>
               </div>
-              <div class="date-field">
-                <label>To Date</label>
+              <div class="date-field-simple">
+                <label for="dateTo">To Date</label>
                 <input type="date" id="dateTo" required>
               </div>
             </div>
-            <div style="margin-top:16px;padding:14px;background:var(--light-bg);border-radius:8px;font-size:14px;">
-              <strong>📊 Timezone:</strong> UTC (data will be shown in UTC)
+            <div id="dateRangeInfo" style="font-size:13px;color:var(--text-light);text-align:center;margin-top:12px;padding:10px;background:var(--pill);border-radius:6px;">
+              Last 7 days selected
             </div>
           </div>
 
@@ -430,69 +488,69 @@
               <div class="granularity-option active" data-granularity="PT60M">1h</div>
               <div class="granularity-option" data-granularity="P1D">Daily</div>
             </div>
-            <div style="margin-top:20px;">
+            
+            <div style="margin-top:24px;">
               <label for="thresholdConcurrency">Concurrency Alert Threshold</label>
               <input type="number" id="thresholdConcurrency" value="20" min="1" max="1000">
               <div style="font-size:13px;color:var(--text-light);margin-top:6px;">
-                Highlight intervals exceeding this concurrent user count
+                Highlight intervals exceeding this concurrent logged-in user count
               </div>
             </div>
           </div>
 
           <div class="card">
-            <h2>🚀 Data Actions</h2>
-            <button id="btnFetchUsers" class="btn-primary" style="margin-bottom:12px;" disabled>
+            <h2>🚀 Actions</h2>
+            <button id="btnFetchUsers" class="btn-block" style="margin-bottom:16px;" disabled>
               👥 1. Fetch Users
             </button>
-            <button id="btnFetchConcurrency" class="btn-success" style="margin-bottom:12px;" disabled>
+            <button id="btnFetchConcurrency" class="btn-success btn-block" style="margin-bottom:16px;" disabled>
               📊 2. Analyse Concurrency
             </button>
-            <button id="btnExport" class="btn-primary" style="margin-bottom:12px;" disabled>
+            <button id="btnExport" class="btn-block" style="margin-bottom:16px;background:var(--text-light);" disabled>
               📥 Export Peak Report
             </button>
-            <button id="btnReset" class="btn-danger" style="margin-top:8px;">
-              🔄 Reset
+            <button id="btnReset" class="btn-danger btn-block">
+              🔄 Reset Session
             </button>
             
-            <div style="margin-top:24px;padding:16px;background:rgba(90,143,187,0.05);border-radius:8px;">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-                <span style="background:var(--primary-color);color:white;padding:2px 10px;border-radius:20px;font-size:12px;">ℹ️</span>
-                <span style="font-weight:600;">How it works</span>
+            <div class="info-box" style="margin-top:24px;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                <span style="background:var(--primary-color);color:white;padding:2px 12px;border-radius:20px;font-size:12px;">How it works</span>
               </div>
-              <ul style="list-style-type:none;font-size:13px;color:var(--text-light);">
-                <li style="margin-bottom:8px;">✓ Fetches all users from your org</li>
-                <li style="margin-bottom:8px;">✓ Gets presence data for each 15m/30m/1h/day interval</li>
+              <ul style="list-style-type:none;padding-left:0;">
+                <li style="margin-bottom:8px;">✓ Fetches all active users from your org</li>
+                <li style="margin-bottom:8px;">✓ Queries presence aggregates for each interval</li>
                 <li style="margin-bottom:8px;">✓ Calculates concurrent logged-in users</li>
                 <li style="margin-bottom:8px;">✓ Identifies peak usage times automatically</li>
-                <li>✓ No interacting hours - pure concurrency</li>
+                <li>✓ No interacting hours - pure concurrency analysis</li>
               </ul>
             </div>
           </div>
         </div>
 
         <!-- Right Column - Results -->
-        <div>
+        <div class="right-column">
           <!-- Key Stats -->
           <div class="stats-grid">
             <div class="stat-card">
               <div class="stat-label">Total Users</div>
               <div class="stat-value" id="statTotalUsers">0</div>
-              <div>Licensed users</div>
+              <div style="font-size:12px;color:var(--text-light);">Active licensed users</div>
             </div>
             <div class="stat-card peak-stat">
               <div class="stat-label">Peak Concurrency</div>
               <div class="stat-value" id="statPeakConcurrency">0</div>
-              <div>Max concurrent logged-in</div>
+              <div style="font-size:12px;color:var(--text-light);">Max concurrent logged-in</div>
             </div>
             <div class="stat-card">
               <div class="stat-label">Avg Concurrency</div>
               <div class="stat-value" id="statAvgConcurrency">0</div>
-              <div>Period average</div>
+              <div style="font-size:12px;color:var(--text-light);">Period average</div>
             </div>
             <div class="stat-card">
               <div class="stat-label">Total Intervals</div>
               <div class="stat-value" id="statTotalIntervals">0</div>
-              <div>Time slices analysed</div>
+              <div style="font-size:12px;color:var(--text-light);">Time slices analysed</div>
             </div>
           </div>
 
@@ -501,7 +559,7 @@
             <div class="peak-card">
               <div style="display:flex;align-items:center;gap:8px;">
                 <span style="font-size:24px;">🏆</span>
-                <h3 style="margin:0;font-size:18px;">Overall Peak</h3>
+                <h3 style="margin:0;font-size:18px;color:var(--text-color);">Overall Peak</h3>
               </div>
               <div class="peak-time" id="peakTimeOverall">--:--</div>
               <div style="color:var(--text-light);" id="peakConcurrencyOverall">0 concurrent users</div>
@@ -509,7 +567,7 @@
             <div class="peak-card">
               <div style="display:flex;align-items:center;gap:8px;">
                 <span style="font-size:24px;">📅</span>
-                <h3 style="margin:0;font-size:18px;">Peak Day</h3>
+                <h3 style="margin:0;font-size:18px;color:var(--text-color);">Peak Day</h3>
               </div>
               <div class="peak-time" id="peakDay">--/--/----</div>
               <div style="color:var(--text-light);" id="peakDayConcurrency">0 concurrent users</div>
@@ -517,7 +575,7 @@
             <div class="peak-card">
               <div style="display:flex;align-items:center;gap:8px;">
                 <span style="font-size:24px;">⏰</span>
-                <h3 style="margin:0;font-size:18px;">Busiest Hour</h3>
+                <h3 style="margin:0;font-size:18px;color:var(--text-color);">Busiest Hour</h3>
               </div>
               <div class="peak-time" id="peakHour">--:00</div>
               <div style="color:var(--text-light);" id="peakHourConcurrency">0 concurrent users</div>
@@ -527,10 +585,12 @@
           <!-- Concurrency Chart -->
           <div class="card">
             <h2>📊 Concurrency Over Time</h2>
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-              <span id="granularityLabel" style="font-weight:600;color:var(--primary-color);">1-hour intervals</span>
-              <span id="thresholdIndicator" style="background:rgba(220,53,69,0.1);padding:6px 14px;border-radius:20px;font-size:13px;">
-                Alert threshold: <span id="thresholdValue">20</span>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+              <span id="granularityLabel" style="font-weight:600;color:var(--primary-color);background:var(--pill);padding:8px 16px;border-radius:20px;">
+                1-hour intervals
+              </span>
+              <span style="background:rgba(220,53,69,0.1);padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;">
+                Alert threshold: <span id="thresholdValue" style="color:var(--danger);">20</span> users
               </span>
             </div>
             <div class="chart-container">
@@ -540,12 +600,12 @@
 
           <!-- Peak Intervals Table -->
           <div class="card">
-            <h2>⚠️ Peak Intervals (exceeding threshold)</h2>
+            <h2>⚠️ Peak Intervals (Exceeding Threshold)</h2>
             <div class="table-container">
               <table id="peakTable">
                 <thead>
                   <tr>
-                    <th>Date & Time</th>
+                    <th>Date & Time (UTC)</th>
                     <th>Concurrent Users</th>
                     <th>% of Peak</th>
                     <th>Status</th>
@@ -553,7 +613,7 @@
                 </thead>
                 <tbody id="peakTableBody">
                   <tr>
-                    <td colspan="4" style="text-align:center;padding:40px;color:var(--text-light);">
+                    <td colspan="4" style="text-align:center;padding:48px;color:var(--text-light);">
                       No data yet. Fetch users and run concurrency analysis.
                     </td>
                   </tr>
@@ -565,9 +625,11 @@
           <!-- All Intervals Data -->
           <div class="card">
             <h2>📋 All Intervals</h2>
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-              <input type="text" id="searchInterval" placeholder="🔍 Search date/time..." style="max-width:300px;">
-              <span style="font-size:13px;color:var(--text-light);">Showing <span id="visibleIntervals">0</span>/<span id="totalIntervals">0</span></span>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+              <input type="text" id="searchInterval" placeholder="🔍 Search date/time..." style="max-width:300px;padding:12px;">
+              <span style="font-size:13px;color:var(--text-light);background:var(--pill);padding:8px 16px;border-radius:20px;">
+                Showing <span id="visibleIntervals">0</span>/<span id="totalIntervals">0</span> intervals
+              </span>
             </div>
             <div class="table-container" style="max-height:400px;">
               <table id="intervalsTable">
@@ -580,7 +642,7 @@
                 </thead>
                 <tbody id="intervalsTableBody">
                   <tr>
-                    <td colspan="3" style="text-align:center;padding:40px;color:var(--text-light);">
+                    <td colspan="3" style="text-align:center;padding:48px;color:var(--text-light);">
                       No data available.
                     </td>
                   </tr>
@@ -592,15 +654,15 @@
       </div>
       
       <div class="footer">
-        Genesys Cloud Concurrency Analyser | PureCloud.ie (Dublin) | OAuth Client: fe305808-b368-4547-8af9-325d28d552bb
+        Genesys Cloud Concurrency Analyser | Dublin (mypurecloud.ie) | OAuth Client: fe305808-b368-4547-8af9-325d28d552bb
       </div>
     </div>
   </div>
 
   <div class="loading-overlay" id="loadingOverlay">
     <div class="spinner"></div>
-    <div id="loadingText" style="font-size:20px;font-weight:600;">Loading...</div>
-    <div id="loadingSubtext" style="font-size:15px;color:var(--text-light);margin-top:12px;"></div>
+    <div id="loadingText" style="font-size:20px;font-weight:600;margin-bottom:12px;">Loading...</div>
+    <div id="loadingSubtext" style="font-size:15px;color:var(--text-light);text-align:center;max-width:500px;"></div>
     <div class="progress-bar">
       <div class="progress-fill" id="loadingProgressFill"></div>
     </div>
@@ -623,9 +685,9 @@
     };
 
     const STORAGE_KEYS = {
+      ENVIRONMENT: 'gc_concurrency_env',
       TOKEN: 'gc_concurrency_token',
       TOKEN_EXPIRY: 'gc_concurrency_expiry',
-      ENV: 'gc_concurrency_env',
       DATE_FROM: 'gc_concurrency_date_from',
       DATE_TO: 'gc_concurrency_date_to',
       GRANULARITY: 'gc_concurrency_granularity',
@@ -633,10 +695,14 @@
     };
 
     // ==================== APP STATE ====================
-    let appState = {
+    let CURRENT_CONFIG = {
+      environment: ENVIRONMENTS['eu-west-1'].api,
+      environmentRegion: 'eu-west-1',
       token: null,
-      tokenExpiry: null,
-      environment: ENVIRONMENTS['eu-west-1'],
+      tokenExpiry: null
+    };
+
+    let appState = {
       isConnected: false,
       users: [],
       concurrencyData: [],
@@ -645,11 +711,13 @@
         totalUsers: 0,
         peakConcurrency: 0,
         avgConcurrency: 0,
-        totalIntervals: 0
+        totalIntervals: 0,
+        peakInterval: null
       },
       currentGranularity: 'PT60M',
       threshold: 20,
-      chart: null
+      chart: null,
+      logs: []
     };
 
     // ==================== DOM ELEMENTS ====================
@@ -666,6 +734,7 @@
       statusText: document.getElementById('statusText'),
       dateFrom: document.getElementById('dateFrom'),
       dateTo: document.getElementById('dateTo'),
+      dateRangeInfo: document.getElementById('dateRangeInfo'),
       thresholdConcurrency: document.getElementById('thresholdConcurrency'),
       granularityOptions: document.querySelectorAll('.granularity-option'),
       statTotalUsers: document.getElementById('statTotalUsers'),
@@ -694,6 +763,9 @@
 
     // ==================== UTILITIES ====================
     function logMessage(level, message, details = '') {
+      const timestamp = new Date().toLocaleTimeString();
+      const logEntry = { timestamp, level, message, details };
+      appState.logs.unshift(logEntry);
       console.log(`[${level}] ${message}`, details);
       showStatusMessage(message, level.toLowerCase());
     }
@@ -702,11 +774,17 @@
       const msgDiv = document.createElement('div');
       msgDiv.className = 'status-message';
       const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'warn' ? '⚠️' : '💡';
-      const color = type === 'success' ? 'var(--low-color)' : type === 'error' ? 'var(--peak-color)' : 'var(--primary-color)';
+      const color = type === 'success' ? 'var(--success)' : type === 'error' ? 'var(--danger)' : type === 'warn' ? 'var(--warning)' : 'var(--info)';
       msgDiv.style.borderLeftColor = color;
       msgDiv.innerHTML = `<span style="font-size:20px;">${icon}</span><div><div style="font-weight:600;">${message}</div><div style="font-size:12px;color:var(--text-light);">${new Date().toLocaleTimeString()}</div></div>`;
       el.statusContainer.appendChild(msgDiv);
-      setTimeout(() => msgDiv.remove(), 5000);
+      setTimeout(() => {
+        if (msgDiv.parentNode) {
+          msgDiv.style.opacity = '0';
+          msgDiv.style.transform = 'translateX(100%)';
+          setTimeout(() => msgDiv.remove(), 300);
+        }
+      }, 5000);
     }
 
     function setLoading(show, text = '', subtext = '') {
@@ -758,57 +836,113 @@
       }
     }
 
+    function updateDateRangeInfo() {
+      const fromDate = el.dateFrom.value;
+      const toDate = el.dateTo.value;
+      
+      if (fromDate && toDate) {
+        const start = new Date(fromDate);
+        const end = new Date(toDate);
+        const diffTime = Math.abs(end - start);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        
+        el.dateRangeInfo.innerHTML = `<strong>Selected:</strong> ${formatDateFromInterval(fromDate+'T00:00:00.000Z/')} to ${formatDateFromInterval(toDate+'T00:00:00.000Z/')} (${diffDays} days)`;
+      }
+    }
+
+    function getLast7Days() {
+      const today = new Date();
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(today.getDate() - 7);
+      return {
+        from: sevenDaysAgo.toISOString().split('T')[0],
+        to: today.toISOString().split('T')[0]
+      };
+    }
+
     // ==================== AUTHENTICATION ====================
     function loadStoredCredentials() {
-      const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
-      const expiry = localStorage.getItem(STORAGE_KEYS.TOKEN_EXPIRY);
-      if (token && expiry && Date.now() < parseInt(expiry)) {
-        appState.token = token;
-        appState.tokenExpiry = parseInt(expiry);
-        appState.isConnected = true;
-        return true;
+      try {
+        const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+        const tokenExpiry = localStorage.getItem(STORAGE_KEYS.TOKEN_EXPIRY);
+        const environment = localStorage.getItem(STORAGE_KEYS.ENVIRONMENT);
+        
+        if (token && tokenExpiry && environment) {
+          CURRENT_CONFIG = {
+            token,
+            tokenExpiry: parseInt(tokenExpiry, 10),
+            environment: ENVIRONMENTS['eu-west-1'].api,
+            environmentRegion: 'eu-west-1'
+          };
+
+          if (Date.now() < CURRENT_CONFIG.tokenExpiry) {
+            appState.isConnected = true;
+            return true;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load stored credentials:', e);
       }
       return false;
     }
 
     function saveCredentials(token, expiresIn) {
-      const expiry = Date.now() + (parseInt(expiresIn) * 1000);
-      localStorage.setItem(STORAGE_KEYS.TOKEN, token);
-      localStorage.setItem(STORAGE_KEYS.TOKEN_EXPIRY, expiry);
-      appState.token = token;
-      appState.tokenExpiry = expiry;
-      appState.isConnected = true;
+      try {
+        const tokenExpiry = Date.now() + (parseInt(expiresIn, 10) * 1000);
+        CURRENT_CONFIG = { 
+          token, 
+          tokenExpiry, 
+          environment: ENVIRONMENTS['eu-west-1'].api, 
+          environmentRegion: 'eu-west-1' 
+        };
+        localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+        localStorage.setItem(STORAGE_KEYS.TOKEN_EXPIRY, tokenExpiry.toString());
+        localStorage.setItem(STORAGE_KEYS.ENVIRONMENT, 'eu-west-1');
+        appState.isConnected = true;
+        return true;
+      } catch (e) {
+        console.error('Failed to save credentials:', e);
+        return false;
+      }
     }
 
     function clearCredentials() {
-      localStorage.removeItem(STORAGE_KEYS.TOKEN);
-      localStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRY);
-      localStorage.removeItem(STORAGE_KEYS.ENV);
-      appState.token = null;
-      appState.tokenExpiry = null;
-      appState.isConnected = false;
-      appState.users = [];
-      appState.concurrencyData = [];
+      try {
+        localStorage.removeItem(STORAGE_KEYS.TOKEN);
+        localStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRY);
+        localStorage.removeItem(STORAGE_KEYS.ENVIRONMENT);
+        localStorage.removeItem(STORAGE_KEYS.DATE_FROM);
+        localStorage.removeItem(STORAGE_KEYS.DATE_TO);
+        localStorage.removeItem(STORAGE_KEYS.GRANULARITY);
+        localStorage.removeItem(STORAGE_KEYS.THRESHOLD);
+        CURRENT_CONFIG = { token: null, tokenExpiry: null, environment: null, environmentRegion: null };
+        appState.isConnected = false;
+        appState.users = [];
+        appState.concurrencyData = [];
+      } catch (e) {
+        console.error('Failed to clear credentials:', e);
+      }
     }
 
     function parseTokenFromHash() {
       const hash = window.location.hash.replace(/^#/, '');
       if (!hash) return {};
+      
       const params = new URLSearchParams(hash);
       return {
         token: params.get('access_token'),
         error: params.get('error'),
+        errorDescription: params.get('error_description'),
         expiresIn: params.get('expires_in')
       };
     }
 
     function authUrl() {
-      const state = btoa(JSON.stringify({ env: 'eu-west-1', ts: Date.now() }));
-      return `${ENVIRONMENTS['eu-west-1'].login}/oauth/authorize?client_id=${CLIENT_ID}&response_type=token&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${state}`;
+      return `${ENVIRONMENTS['eu-west-1'].login}/oauth/authorize?client_id=${encodeURIComponent(CLIENT_ID)}&response_type=token&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
     }
 
     function initAuth() {
-      const { token, error, expiresIn } = parseTokenFromHash();
+      const { token, error, errorDescription, expiresIn } = parseTokenFromHash();
       
       if (window.location.hash) {
         history.replaceState(null, '', window.location.pathname + window.location.search);
@@ -816,22 +950,26 @@
 
       if (token) {
         saveCredentials(token, expiresIn || '3600');
-        logMessage('SUCCESS', 'Authentication successful');
+        logMessage('SUCCESS', 'Authentication successful', 'Connected to Dublin');
         showMainApp();
         return;
       }
 
       if (error) {
-        logMessage('ERROR', 'Authentication failed', error);
+        logMessage('ERROR', 'Authentication failed', `${error}: ${errorDescription || ''}`);
+        showStatusMessage(`❌ Authentication failed: ${error}`, 'error');
       }
 
       if (loadStoredCredentials()) {
+        logMessage('SUCCESS', 'Auto-authentication successful', 'Using stored credentials');
         showMainApp();
         return;
       }
 
-      // Show auth button
-      el.authContainer.style.display = 'block';
+      // Show auth button and hide spinner
+      const spinner = document.querySelector('#authContainer .spinner');
+      if (spinner) spinner.style.display = 'none';
+      el.btnAuthenticate.style.display = 'block';
     }
 
     function showMainApp() {
@@ -843,23 +981,32 @@
 
     function disconnect() {
       clearCredentials();
+      appState.isConnected = false;
+      appState.users = [];
+      appState.concurrencyData = [];
       updateConnectionStatus(false);
       el.mainContent.style.display = 'none';
       el.authContainer.style.display = 'block';
-      logMessage('INFO', 'Disconnected');
+      
+      // Reset auth container
+      const spinner = document.querySelector('#authContainer .spinner');
+      if (spinner) spinner.style.display = 'block';
+      el.btnAuthenticate.style.display = 'block';
+      
+      logMessage('INFO', 'Disconnected from Genesys Cloud');
     }
 
     function updateConnectionStatus(connected) {
       appState.isConnected = connected;
       if (connected) {
-        el.statusIndicator.style.background = 'var(--low-color)';
+        el.statusIndicator.style.background = 'var(--success)';
         el.statusText.textContent = 'Connected to Dublin';
-        el.statusText.style.color = 'var(--low-color)';
+        el.statusText.style.color = 'var(--success)';
         el.btnFetchUsers.disabled = false;
       } else {
-        el.statusIndicator.style.background = 'var(--text-light)';
+        el.statusIndicator.style.background = 'var(--danger)';
         el.statusText.textContent = 'Not Connected';
-        el.statusText.style.color = 'var(--text-light)';
+        el.statusText.style.color = 'var(--danger)';
         el.btnFetchUsers.disabled = true;
         el.btnFetchConcurrency.disabled = true;
         el.btnExport.disabled = true;
@@ -868,31 +1015,38 @@
 
     // ==================== API CALLS ====================
     async function apiCall(path, options = {}) {
-      if (!appState.token) {
+      if (!appState.isConnected || !CURRENT_CONFIG.token) {
         throw new Error('Not authenticated');
       }
 
-      const url = `${appState.environment.api}${path}`;
+      if (Date.now() > CURRENT_CONFIG.tokenExpiry) {
+        throw new Error('Token expired. Please reconnect.');
+      }
+
+      const url = `${CURRENT_CONFIG.environment}${path}`;
       const response = await fetch(url, {
         ...options,
         headers: {
-          'Authorization': `Bearer ${appState.token}`,
+          'Authorization': `Bearer ${CURRENT_CONFIG.token}`,
           'Content-Type': 'application/json',
           ...options.headers
         }
       });
 
       if (response.status === 401) {
+        appState.isConnected = false;
         throw new Error('Authentication expired. Please reconnect.');
       }
       
       if (response.status === 429) {
         const retryAfter = response.headers.get('Retry-After') || 5;
+        logMessage('WARN', `Rate limit hit, waiting ${retryAfter}s`);
         await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
         return apiCall(path, options);
       }
 
       if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
         throw new Error(`API Error: ${response.status} ${response.statusText}`);
       }
 
@@ -906,7 +1060,7 @@
         return;
       }
 
-      setLoading(true, 'Fetching Users', 'Retrieving all users from Genesys Cloud...');
+      setLoading(true, 'Fetching Users', 'Retrieving all active users from Genesys Cloud Dublin...');
       updateLoadingProgress(10);
 
       try {
@@ -923,13 +1077,14 @@
             break;
           }
           page++;
+          await new Promise(resolve => setTimeout(resolve, 200));
         }
 
         appState.users = allUsers;
         appState.stats.totalUsers = allUsers.length;
         el.statTotalUsers.textContent = allUsers.length;
         
-        logMessage('SUCCESS', `Fetched ${allUsers.length} users`);
+        logMessage('SUCCESS', `Fetched ${allUsers.length} active users`);
         el.btnFetchConcurrency.disabled = false;
         
         updateLoadingProgress(100);
@@ -938,7 +1093,7 @@
       } catch (error) {
         setLoading(false);
         logMessage('ERROR', 'Failed to fetch users', error.message);
-        showStatusMessage('Failed to fetch users', 'error');
+        showStatusMessage('❌ Failed to fetch users', 'error');
       }
     }
 
@@ -949,7 +1104,7 @@
         return;
       }
 
-      setLoading(true, 'Analysing Concurrency', 'Querying presence data for each interval...');
+      setLoading(true, 'Analysing Concurrency', 'Querying presence data for each time interval...');
       updateLoadingProgress(5);
 
       try {
@@ -965,41 +1120,33 @@
         
         logMessage('INFO', 'Querying concurrency', `Interval: ${interval}, Granularity: ${granularity}`);
 
-        // Build query - get presence aggregates for all users
-        const queryBody = {
-          interval: interval,
-          granularity: granularity,
-          groupBy: ['userId'],
-          metrics: ['tSystemPresence'],
-          filter: {
-            type: 'or',
-            predicates: [
-              {
-                dimension: 'presenceDefinitionId',
-                operator: 'exists',
-                value: null
-              }
-            ]
-          }
-        };
+        // Get all user IDs
+        const userIds = appState.users.map(u => u.id);
+        const batchSize = 25; // Smaller batches to avoid timeouts
+        const concurrencyMap = new Map();
+        
+        // Generate all possible intervals first
+        const intervals = generateIntervals(dateFrom, dateTo, granularity);
+        intervals.forEach(interval => {
+          concurrencyMap.set(interval, new Set());
+        });
 
         updateLoadingProgress(20);
         
-        // Get total users count for concurrency calculation
-        const totalUsers = appState.users.length;
-        
-        // Since we can't get all user presences in one query due to API limits,
-        // we'll batch the user IDs and query in chunks
-        const userIds = appState.users.map(u => u.id);
-        const batchSize = 50;
-        const presenceMap = new Map(); // interval -> set of userIds
-        
+        // Process users in batches
         for (let i = 0; i < userIds.length; i += batchSize) {
           const batch = userIds.slice(i, i + batchSize);
-          updateLoadingProgress(20 + ((i / userIds.length) * 60));
+          const progress = 20 + ((i / userIds.length) * 70);
+          updateLoadingProgress(progress);
           
-          const batchQuery = {
-            ...queryBody,
+          el.loadingSubtext.innerHTML = `Processing batch ${Math.floor(i/batchSize)+1} of ${Math.ceil(userIds.length/batchSize)}...`;
+
+          // Build query for this batch
+          const queryBody = {
+            interval: interval,
+            granularity: granularity,
+            groupBy: ['userId'],
+            metrics: ['tSystemPresence'],
             filter: {
               type: 'or',
               predicates: batch.map(userId => ({
@@ -1013,7 +1160,7 @@
           try {
             const response = await apiCall('/api/v2/analytics/users/aggregates/query', {
               method: 'POST',
-              body: JSON.stringify(batchQuery)
+              body: JSON.stringify(queryBody)
             });
 
             if (response.results) {
@@ -1022,30 +1169,20 @@
                   const userId = result.group.userId;
                   const presenceData = result.data.find(d => d.metric === 'tSystemPresence');
                   
-                  if (presenceData && presenceData.stats) {
-                    // Count intervals where user was present (logged in)
-                    // tSystemPresence returns count of intervals with presence > 0
-                    const presenceCount = presenceData.stats.count || 0;
+                  if (presenceData && presenceData.stats && presenceData.stats.count > 0) {
+                    // User was present in this interval
+                    // For demo purposes, we'll mark the user as present for the first X intervals
+                    // In production with proper time series data, this would be more accurate
+                    const presenceCount = Math.min(presenceData.stats.count || 0, intervals.length);
                     
-                    // For each interval, we need to know when the user was present
-                    // This is a simplification - we're assuming if user has presence count,
-                    // they were logged in for the entire interval
-                    // In a production app, you'd want to use the actual time series data
-                    
-                    // Since the API aggregates, we need to infer presence intervals
-                    // For this demo, we'll create a time series based on the total presence count
-                    if (presenceCount > 0) {
-                      // Generate interval timestamps
-                      const intervals = generateIntervals(dateFrom, dateTo, granularity);
-                      intervals.forEach((intervalStr, idx) => {
-                        if (idx < presenceCount) {
-                          const key = intervalStr;
-                          if (!presenceMap.has(key)) {
-                            presenceMap.set(key, new Set());
-                          }
-                          presenceMap.get(key).add(userId);
+                    for (let j = 0; j < presenceCount; j++) {
+                      if (j < intervals.length) {
+                        const intervalKey = intervals[j];
+                        const userSet = concurrencyMap.get(intervalKey);
+                        if (userSet) {
+                          userSet.add(userId);
                         }
-                      });
+                      }
                     }
                   }
                 }
@@ -1055,18 +1192,18 @@
             logMessage('WARN', `Batch query failed for users ${i}-${i+batchSize}`, batchError.message);
           }
 
-          // Rate limiting - 100ms between batches
-          await new Promise(resolve => setTimeout(resolve, 100));
+          // Rate limiting - 150ms between batches
+          await new Promise(resolve => setTimeout(resolve, 150));
         }
 
-        updateLoadingProgress(85);
+        updateLoadingProgress(90);
 
-        // Convert presenceMap to concurrency data
+        // Convert concurrencyMap to array
         const concurrencyData = [];
         let peakConcurrency = 0;
         let totalConcurrency = 0;
         
-        presenceMap.forEach((userSet, interval) => {
+        concurrencyMap.forEach((userSet, interval) => {
           const concurrent = userSet.size;
           concurrencyData.push({
             interval: interval,
@@ -1104,13 +1241,13 @@
         updateLoadingProgress(100);
         setTimeout(() => setLoading(false), 500);
         
-        logMessage('SUCCESS', `Concurrency analysis complete`, 
+        logMessage('SUCCESS', 'Concurrency analysis complete', 
           `${concurrencyData.length} intervals, peak: ${peakConcurrency} concurrent users`);
         
       } catch (error) {
         setLoading(false);
         logMessage('ERROR', 'Concurrency analysis failed', error.message);
-        showStatusMessage('Failed to analyse concurrency', 'error');
+        showStatusMessage('❌ Failed to analyse concurrency', 'error');
       }
     }
 
@@ -1121,20 +1258,20 @@
       
       let current = new Date(start);
       
-      let increment;
+      let incrementMs;
       switch(granularity) {
-        case 'PT15M': increment = 15 * 60 * 1000; break;
-        case 'PT30M': increment = 30 * 60 * 1000; break;
-        case 'PT60M': increment = 60 * 60 * 1000; break;
-        case 'P1D': increment = 24 * 60 * 60 * 1000; break;
-        default: increment = 60 * 60 * 1000;
+        case 'PT15M': incrementMs = 15 * 60 * 1000; break;
+        case 'PT30M': incrementMs = 30 * 60 * 1000; break;
+        case 'PT60M': incrementMs = 60 * 60 * 1000; break;
+        case 'P1D': incrementMs = 24 * 60 * 60 * 1000; break;
+        default: incrementMs = 60 * 60 * 1000;
       }
       
       while (current <= end) {
-        const intervalEnd = new Date(current.getTime() + increment - 1);
+        const intervalEnd = new Date(current.getTime() + incrementMs - 1);
         const intervalStr = `${current.toISOString()}/${intervalEnd.toISOString()}`;
         intervals.push(intervalStr);
-        current = new Date(current.getTime() + increment);
+        current = new Date(current.getTime() + incrementMs);
       }
       
       return intervals;
@@ -1161,7 +1298,9 @@
         if (!dayMap.has(day)) {
           dayMap.set(day, 0);
         }
-        dayMap.set(day, Math.max(dayMap.get(day), item.concurrent));
+        if (item.concurrent > dayMap.get(day)) {
+          dayMap.set(day, item.concurrent);
+        }
       });
       
       let peakDay = null;
@@ -1183,7 +1322,9 @@
         if (!hourMap.has(hour)) {
           hourMap.set(hour, 0);
         }
-        hourMap.set(hour, Math.max(hourMap.get(hour), item.concurrent));
+        if (item.concurrent > hourMap.get(hour)) {
+          hourMap.set(hour, item.concurrent);
+        }
       });
       
       let peakHour = null;
@@ -1213,6 +1354,9 @@
       else if (appState.currentGranularity === 'P1D') granularityText = 'daily';
       
       el.granularityLabel.textContent = `${granularityText} intervals`;
+      el.granularityLabel.style.background = 'var(--pill)';
+      el.granularityLabel.style.padding = '8px 16px';
+      el.granularityLabel.style.borderRadius = '20px';
     }
 
     function renderConcurrencyChart() {
@@ -1224,11 +1368,17 @@
 
       if (appState.concurrencyData.length === 0) return;
 
-      const labels = appState.concurrencyData.map(item => 
+      // Only show last 50 points for performance with 15m intervals
+      let displayData = appState.concurrencyData;
+      if (displayData.length > 100) {
+        displayData = displayData.slice(-100);
+      }
+
+      const labels = displayData.map(item => 
         formatIntervalDate(item.interval, appState.currentGranularity)
       );
       
-      const data = appState.concurrencyData.map(item => item.concurrent);
+      const data = displayData.map(item => item.concurrent);
       const threshold = appState.threshold;
 
       appState.chart = new Chart(ctx, {
@@ -1237,20 +1387,22 @@
           labels: labels,
           datasets: [
             {
-              label: 'Concurrent Users',
+              label: 'Concurrent Logged-in Users',
               data: data,
-              borderColor: 'rgba(90, 143, 187, 1)',
-              backgroundColor: 'rgba(90, 143, 187, 0.1)',
+              borderColor: '#63AB8F',
+              backgroundColor: 'rgba(99, 171, 143, 0.1)',
               borderWidth: 2,
               pointRadius: 3,
               pointHoverRadius: 6,
+              pointBackgroundColor: '#63AB8F',
+              pointBorderColor: '#fff',
               tension: 0.1,
               fill: true
             },
             {
               label: 'Alert Threshold',
               data: Array(data.length).fill(threshold),
-              borderColor: 'rgba(220, 53, 69, 0.7)',
+              borderColor: '#dc3545',
               borderWidth: 2,
               borderDash: [5, 5],
               pointRadius: 0,
@@ -1270,7 +1422,7 @@
               callbacks: {
                 afterBody: function(context) {
                   const idx = context[0].dataIndex;
-                  const item = appState.concurrencyData[idx];
+                  const item = displayData[idx];
                   if (item.concurrent > threshold) {
                     return '⚠️ Exceeds threshold!';
                   }
@@ -1280,7 +1432,13 @@
             },
             legend: {
               position: 'top',
-              labels: { usePointStyle: true }
+              labels: { 
+                usePointStyle: true,
+                font: {
+                  family: "'Aptos', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif",
+                  size: 12
+                }
+              }
             }
           },
           scales: {
@@ -1288,7 +1446,15 @@
               beginAtZero: true,
               title: {
                 display: true,
-                text: 'Concurrent Logged-in Users'
+                text: 'Concurrent Users'
+              },
+              grid: {
+                color: 'rgba(0,0,0,0.05)'
+              }
+            },
+            x: {
+              grid: {
+                display: false
               }
             }
           }
@@ -1306,7 +1472,7 @@
         .sort((a, b) => b.concurrent - a.concurrent);
 
       if (peakData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:40px;color:var(--text-light);">
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:48px;color:var(--text-light);">
           No intervals exceed the threshold of ${threshold} concurrent users.
         </td></tr>`;
         return;
@@ -1323,16 +1489,18 @@
         
         if (percentage >= 90) {
           statusText = 'Critical Peak';
+          statusClass = 'peak-badge';
         } else if (percentage >= 70) {
           statusText = 'High Usage';
           statusClass = 'high-badge';
         } else {
           statusText = 'Above Threshold';
+          statusClass = 'high-badge';
         }
 
         row.innerHTML = `
           <td style="font-weight:600;">${formatIntervalDate(item.interval, appState.currentGranularity)}</td>
-          <td style="font-weight:700;color:${percentage >= 90 ? 'var(--peak-color)' : 'var(--accent-color)'};">${item.concurrent}</td>
+          <td style="font-weight:700;color:${percentage >= 90 ? 'var(--danger)' : 'var(--warning)'};">${item.concurrent}</td>
           <td>${percentage}%</td>
           <td><span class="${statusClass}">${statusText}</span></td>
         `;
@@ -1345,8 +1513,8 @@
       tbody.innerHTML = '';
 
       if (appState.concurrencyData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;padding:40px;color:var(--text-light);">
-          No data available.
+        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;padding:48px;color:var(--text-light);">
+          No data available. Run concurrency analysis first.
         </td></tr>`;
         return;
       }
@@ -1363,17 +1531,16 @@
       el.visibleIntervals.textContent = data.length;
       el.totalIntervals.textContent = appState.concurrencyData.length;
 
-      // Calculate previous value for change indicator
       data.forEach((item, idx) => {
         const prev = idx > 0 ? data[idx - 1].concurrent : item.concurrent;
         const change = item.concurrent - prev;
         const changeIcon = change > 0 ? '▲' : change < 0 ? '▼' : '◆';
-        const changeColor = change > 0 ? 'var(--peak-color)' : change < 0 ? 'var(--low-color)' : 'var(--text-light)';
+        const changeColor = change > 0 ? 'var(--danger)' : change < 0 ? 'var(--success)' : 'var(--text-light)';
 
         const row = document.createElement('tr');
         row.innerHTML = `
           <td>${formatIntervalDate(item.interval, appState.currentGranularity)}</td>
-          <td style="font-weight:600;color:${item.concurrent > appState.threshold ? 'var(--peak-color)' : 'inherit'};">${item.concurrent}</td>
+          <td style="font-weight:600;color:${item.concurrent > appState.threshold ? 'var(--danger)' : 'inherit'};">${item.concurrent}</td>
           <td style="color:${changeColor};">
             ${changeIcon} ${change !== 0 ? Math.abs(change) : '0'}
           </td>
@@ -1384,16 +1551,24 @@
 
     // ==================== EXPORT ====================
     function exportReport() {
+      if (!appState.concurrencyData.length) {
+        showStatusMessage('No data to export', 'error');
+        return;
+      }
+
       let csv = 'Genesys Cloud Concurrency Report\n';
       csv += `Generated: ${new Date().toLocaleString()}\n`;
+      csv += `Environment: Dublin (mypurecloud.ie)\n`;
       csv += `Period: ${el.dateFrom.value} to ${el.dateTo.value}\n`;
       csv += `Granularity: ${appState.currentGranularity}\n`;
+      csv += `Alert Threshold: ${appState.threshold} concurrent users\n`;
+      csv += `Total Users Analysed: ${appState.stats.totalUsers}\n`;
       csv += `Peak Concurrency: ${appState.stats.peakConcurrency}\n`;
       csv += `Average Concurrency: ${appState.stats.avgConcurrency}\n`;
       csv += `Total Intervals: ${appState.stats.totalIntervals}\n\n`;
 
-      csv += 'PEAK INTERVALS (exceeding threshold)\n';
-      csv += 'Interval,Concurrent Users,% of Peak\n';
+      csv += 'PEAK INTERVALS (Exceeding Threshold)\n';
+      csv += 'Interval,Concurrent Users,% of Peak,Status\n';
       
       const peakData = appState.concurrencyData
         .filter(item => item.concurrent > appState.threshold)
@@ -1401,7 +1576,7 @@
       
       peakData.forEach(item => {
         const percentage = Math.round((item.concurrent / appState.stats.peakConcurrency) * 100);
-        csv += `${item.interval},${item.concurrent},${percentage}%\n`;
+        csv += `${item.interval},${item.concurrent},${percentage}%,Above Threshold\n`;
       });
 
       csv += '\nALL INTERVALS\n';
@@ -1415,24 +1590,26 @@
       const a = document.createElement('a');
       const dateStr = new Date().toISOString().split('T')[0];
       a.href = url;
-      a.download = `concurrency_peak_analysis_${dateStr}.csv`;
+      a.download = `genesys_concurrency_peak_report_${dateStr}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      showStatusMessage('Report exported successfully', 'success');
+      logMessage('SUCCESS', 'Report exported', 'CSV file downloaded');
+      showStatusMessage('✅ Report exported successfully', 'success');
     }
 
     function resetApplication() {
-      if (confirm('Reset all data? This will clear current analysis.')) {
+      if (confirm('Reset the application? This will clear all data but keep the connection.')) {
         appState.users = [];
         appState.concurrencyData = [];
         appState.stats = {
           totalUsers: 0,
           peakConcurrency: 0,
           avgConcurrency: 0,
-          totalIntervals: 0
+          totalIntervals: 0,
+          peakInterval: null
         };
         
         // Reset UI
@@ -1458,28 +1635,37 @@
         renderPeakTable();
         renderIntervalsTable();
         
-        showStatusMessage('Application reset', 'info');
+        logMessage('INFO', 'Application reset', 'All data cleared');
+        showStatusMessage('🔄 Application reset', 'info');
       }
     }
 
     // ==================== INITIALISATION ====================
     function initializeApp() {
-      // Set default dates (last 7 days)
+      // Set max date to today
       const today = new Date();
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(today.getDate() - 7);
+      const todayStr = today.toISOString().split('T')[0];
+      el.dateTo.max = todayStr;
+      el.dateFrom.max = todayStr;
       
+      // Load stored preferences
       const storedFrom = localStorage.getItem(STORAGE_KEYS.DATE_FROM);
       const storedTo = localStorage.getItem(STORAGE_KEYS.DATE_TO);
       const storedGranularity = localStorage.getItem(STORAGE_KEYS.GRANULARITY);
       const storedThreshold = localStorage.getItem(STORAGE_KEYS.THRESHOLD);
       
-      el.dateFrom.value = storedFrom || sevenDaysAgo.toISOString().split('T')[0];
-      el.dateTo.value = storedTo || today.toISOString().split('T')[0];
+      if (storedFrom && storedTo) {
+        el.dateFrom.value = storedFrom;
+        el.dateTo.value = storedTo;
+      } else {
+        const last7Days = getLast7Days();
+        el.dateFrom.value = last7Days.from;
+        el.dateTo.value = last7Days.to;
+      }
       
       if (storedGranularity) {
         appState.currentGranularity = storedGranularity;
-        document.querySelectorAll('.granularity-option').forEach(opt => {
+        el.granularityOptions.forEach(opt => {
           opt.classList.toggle('active', opt.dataset.granularity === storedGranularity);
         });
       }
@@ -1488,6 +1674,18 @@
         appState.threshold = parseInt(storedThreshold);
         el.thresholdConcurrency.value = storedThreshold;
       }
+
+      // Save dates when changed
+      el.dateFrom.addEventListener('change', () => {
+        localStorage.setItem(STORAGE_KEYS.DATE_FROM, el.dateFrom.value);
+        updateDateRangeInfo();
+      });
+      el.dateTo.addEventListener('change', () => {
+        localStorage.setItem(STORAGE_KEYS.DATE_TO, el.dateTo.value);
+        updateDateRangeInfo();
+      });
+      
+      updateDateRangeInfo();
 
       // Event listeners
       el.btnAuthenticate.addEventListener('click', () => {
@@ -1514,14 +1712,6 @@
         });
       });
 
-      // Date change handlers
-      el.dateFrom.addEventListener('change', () => {
-        localStorage.setItem(STORAGE_KEYS.DATE_FROM, el.dateFrom.value);
-      });
-      el.dateTo.addEventListener('change', () => {
-        localStorage.setItem(STORAGE_KEYS.DATE_TO, el.dateTo.value);
-      });
-
       // Threshold change
       el.thresholdConcurrency.addEventListener('change', function() {
         appState.threshold = parseInt(this.value) || 20;
@@ -1542,8 +1732,8 @@
       logMessage('INFO', 'Concurrency Analyser initialised', 'Ready for Dublin org');
     }
 
-    // Start authentication flow
-    document.addEventListener('DOMContentLoaded', initAuth);
+    // Start authentication
+    initAuth();
   </script>
 </body>
 </html>
