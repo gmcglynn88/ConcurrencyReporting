@@ -215,25 +215,6 @@
       margin-left: 12px;
       display: inline-block;
     }
-    .auth-debug {
-      margin-top: 20px;
-      padding: 15px;
-      background: #f8d7da;
-      border: 1px solid #f5c6cb;
-      border-radius: 8px;
-      color: #721c24;
-      display: none;
-    }
-    .auth-debug.visible {
-      display: block;
-    }
-    .manual-auth {
-      margin-top: 20px;
-      padding: 20px;
-      background: var(--light-bg);
-      border-radius: 8px;
-      border: 1px solid var(--border-color);
-    }
   </style>
 </head>
 <body>
@@ -255,12 +236,6 @@
       </div>
     </header>
     <hr class="divider">
-
-    <!-- Auth Debug Panel - Will show if there are issues -->
-    <div id="authDebug" class="auth-debug">
-      <strong>⚠️ Authentication Debug Info:</strong>
-      <div id="authDebugMessage"></div>
-    </div>
 
     <div class="main-content">
       <div class="container" style="width:100%;padding:20px;">
@@ -488,9 +463,9 @@
     // ==================== LONDON REGION CONFIGURATION ====================
     const CLIENT_ID = 'd968eca4-cdb7-4b90-91b1-4628b5bb679e';
     
-    // CRITICAL: This MUST match EXACTLY what's in your Genesys Cloud OAuth client configuration
-    // Including trailing slash or no trailing slash
-    const REDIRECT_URI = window.location.origin + window.location.pathname;
+    // ⚠️ IMPORTANT: This EXACT URI must be registered in your Genesys Cloud OAuth client
+    // It is set to match the current page URL: https://gmcglynn88.github.io/ConcurrencyReporting/
+    const REDIRECT_URI = window.location.href.split('#')[0];
     
     const ENVIRONMENTS = {
       'eu-west-2': { 
@@ -568,12 +543,10 @@
       loadingProgressFill: document.getElementById('loadingProgressFill'),
       statusContainer: document.getElementById('statusContainer'),
       concurrencyChart: document.getElementById('concurrencyChart'),
-      authDebug: document.getElementById('authDebug'),
-      authDebugMessage: document.getElementById('authDebugMessage'),
       currentRedirectUri: document.getElementById('currentRedirectUri')
     };
 
-    // Display current redirect URI
+    // Display the current redirect URI in the UI
     if (el.currentRedirectUri) {
       el.currentRedirectUri.textContent = REDIRECT_URI;
     }
@@ -589,14 +562,6 @@
         errorDescription: params.get('error_description'),
         expiresIn: params.get('expires_in')
       };
-    }
-
-    function showAuthDebug(message) {
-      if (el.authDebug && el.authDebugMessage) {
-        el.authDebug.classList.add('visible');
-        el.authDebugMessage.innerHTML = message;
-        console.error('Auth Debug:', message);
-      }
     }
 
     function saveCredentials(token, expiresIn) {
@@ -661,7 +626,6 @@
     }
 
     function authUrl() {
-      // Ensure no double slashes or encoding issues
       const baseUrl = ENVIRONMENTS['eu-west-2'].login;
       const clientId = encodeURIComponent(CLIENT_ID);
       const redirectUri = encodeURIComponent(REDIRECT_URI);
@@ -690,8 +654,7 @@
       
       if (error) {
         console.log("Auth error:", error, errorDescription);
-        showAuthDebug(`Error: ${error}<br>Description: ${errorDescription}<br>Redirect URI: ${REDIRECT_URI}<br>Please verify this EXACT URI is registered in Genesys Cloud OAuth.`);
-        showStatusMessage(`❌ Authentication failed: ${errorDescription || error}`, 'error');
+        showStatusMessage(`❌ Authentication failed: ${errorDescription || error}. Please ensure the OAuth client is configured with redirect URI: ${REDIRECT_URI}`, 'error');
       }
       
       if (loadStoredCredentials()) {
@@ -1000,13 +963,11 @@
                   const userId = userDetail.userId;
                   if (userDetail.primaryPresence) {
                     userDetail.primaryPresence.forEach(presenceEvent => {
-                      // User is considered logged-in if they have any presence state other than 'Offline'
                       if (presenceEvent.systemPresence !== 'Offline' && presenceEvent.systemPresence !== null) {
                         const presenceStart = presenceEvent.startTime;
                         const presenceEnd = presenceEvent.endTime || windowInterval.split('/')[1];
                         const presenceInterval = `${presenceStart}/${presenceEnd}`;
                         
-                        // Map to granular intervals
                         allGranularIntervals.forEach(granularInterval => {
                           if (intervalsOverlap(presenceInterval, granularInterval)) {
                             const userSet = concurrencyMap.get(granularInterval);
