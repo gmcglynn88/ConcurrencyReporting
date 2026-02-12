@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Genesys Cloud - Concurrency & Peak Time Analyser</title>
+  <link href="https://fonts.googleapis.com/css2?family=Aptos:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root{
       --primary-color:#63AB8F;
@@ -423,260 +426,319 @@
       color:var(--text-light);
     }
 
-    .no-chart-fallback {
+    .button-container {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .save-button {
+      padding: 8px 16px;
+      background: var(--primary-color);
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: .3s;
+    }
+
+    .save-button:hover {
+      background: var(--secondary-color);
+    }
+
+    .brand {
       display: flex;
       align-items: center;
-      justify-content: center;
-      height: 100%;
+      gap: 10px;
+    }
+
+    .brand-logo, .logo {
+      height: 40px;
+      object-fit: contain;
+    }
+
+    .divider {
+      border: none;
+      height: 1px;
+      background: var(--border-color);
+      margin: 0;
+    }
+
+    .tab-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
       background: var(--light-bg);
-      border-radius: 8px;
+      border-bottom: 1px solid var(--border-color);
+      padding: 0 20px;
+    }
+
+    .tab {
+      display: flex;
+    }
+
+    .tab button {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 12px 20px;
+      font-size: 15px;
       color: var(--text-light);
-      font-size: 14px;
-      text-align: center;
-      padding: 20px;
+      font-weight: 600;
+      border-bottom: 3px solid transparent;
+      transition: .3s;
+    }
+
+    .tab button:hover {
+      color: var(--primary-color);
+    }
+
+    .tab button.active {
+      color: var(--primary-color);
+      border-bottom: 3px solid var(--primary-color);
     }
   </style>
-  <!-- Load Chart.js from local fallback if CDN fails -->
-  <script>
-    window.chartJsLoaded = false;
-    window.chartJsFailed = false;
-  </script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js" 
-          onload="window.chartJsLoaded = true" 
-          onerror="window.chartJsFailed = true">
-  </script>
 </head>
 <body>
-  <div id="authContainer" style="display:block;">
-    <div class="container" style="max-width:500px;margin:100px auto;">
-      <div class="auth-card">
-        <h2 style="border-bottom:none;text-align:center;justify-content:center;margin-bottom:20px;">🔐 Genesys Cloud Authentication</h2>
-        <div style="padding:20px;text-align:center;">
-          <div class="spinner" id="authSpinner" style="width:50px;height:50px;margin:20px auto;"></div>
-          <p id="authMessage" style="margin:20px 0;font-size:16px;color:var(--text-color);">Attempting automatic authentication...</p>
-          <p style="color:var(--text-light);font-size:14px;margin-bottom:20px;">Client ID: fe305808-b368-4547-8af9-325d28d552bb</p>
-          <button id="btnAuthenticate" class="btn-block" style="background:var(--primary-color);padding:14px;font-size:16px;display:none;">
-            🔑 Click to Authenticate Manually
-          </button>
-          <div class="info-box" style="margin-top:30px;text-align:left;">
-            <strong style="color:var(--primary-color);">📍 Environment:</strong> EU West (Dublin) - mypurecloud.ie<br>
-            <strong style="color:var(--primary-color);">📋 Redirect URI:</strong> https://gmcglynn88.github.io/ConcurrencyReporting/<br>
-            <strong style="color:var(--primary-color);">ℹ️ Status:</strong> <span id="authStatus">Checking for existing token...</span>
-          </div>
-        </div>
+  <div id="app-content" style="width:100%;height:100%;flex:1;display:flex;flex-direction:column;">
+    <header>
+      <div class="brand">
+        <img src="https://raw.githubusercontent.com/gmcglynn88/TimeoffApp/main/YourTime%20Logo_WEM_White%20Reversed.png" alt="Your Time" class="brand-logo" style="height:40px;">
+      </div>
+      <img src="https://raw.githubusercontent.com/gmcglynn88/TimeoffApp/main/IPI_Primary%20Identity_Corporate_REVERSED_ECC.png" alt="Consulting Logo" class="logo" style="height:40px;">
+    </header>
+    <hr class="divider">
+
+    <div class="tab-container">
+      <div class="tab">
+        <button class="tablinks active" data-tab="Concurrency">📊 Concurrency Analyser</button>
+        <button class="tablinks" data-tab="Settings">⚙️ Settings</button>
+      </div>
+      <div class="button-container">
+        <button class="save-button" id="btnDisconnect" style="background:var(--danger);">Disconnect</button>
       </div>
     </div>
-  </div>
 
-  <div id="mainContent" style="display:none;">
-    <div class="container">
-      <header>
-        <div>
-          <h1>📊 Genesys Cloud - Concurrency & Peak Time Analyser</h1>
-          <div class="subtitle">Real-time concurrency analysis from 15m to daily granularity • No interacting hours • Pure concurrency</div>
-        </div>
-        <div class="connection-status" id="connectionStatus">
-          <span class="status-indicator" id="statusIndicator"></span>
-          <span id="statusText">Not Connected</span>
-          <button id="btnDisconnect" style="width:auto;padding:8px 20px;background:var(--danger);">Disconnect</button>
-        </div>
-      </header>
-
-      <div class="main-grid">
-        <!-- Left Column - Controls -->
-        <div class="left-column">
-          <div class="card">
-            <h2>📅 Analysis Period</h2>
-            <div class="date-range-simple">
-              <div class="date-field-simple">
-                <label for="dateFrom">From Date</label>
-                <input type="date" id="dateFrom" required>
+    <div class="main-content">
+      <!-- Concurrency Tab -->
+      <div id="Concurrency" class="tabcontent" style="display:flex;">
+        <div class="container" style="width:100%;">
+          <div class="main-grid">
+            <!-- Left Column - Controls -->
+            <div class="left-column">
+              <div class="card">
+                <h2>📅 Analysis Period</h2>
+                <div class="date-range-simple">
+                  <div class="date-field-simple">
+                    <label for="dateFrom">From Date</label>
+                    <input type="date" id="dateFrom" required>
+                  </div>
+                  <div class="date-field-simple">
+                    <label for="dateTo">To Date</label>
+                    <input type="date" id="dateTo" required>
+                  </div>
+                </div>
+                <div id="dateRangeInfo" style="font-size:13px;color:var(--text-light);text-align:center;margin-top:12px;padding:10px;background:var(--pill);border-radius:6px;">
+                  Last 7 days selected
+                </div>
               </div>
-              <div class="date-field-simple">
-                <label for="dateTo">To Date</label>
-                <input type="date" id="dateTo" required>
+
+              <div class="card">
+                <h2>⏱️ Granularity</h2>
+                <div class="granularity-selector" id="granularitySelector">
+                  <div class="granularity-option" data-granularity="PT15M">15m</div>
+                  <div class="granularity-option" data-granularity="PT30M">30m</div>
+                  <div class="granularity-option active" data-granularity="PT60M">1h</div>
+                  <div class="granularity-option" data-granularity="P1D">Daily</div>
+                </div>
+                
+                <div style="margin-top:24px;">
+                  <label for="thresholdConcurrency">Concurrency Alert Threshold</label>
+                  <input type="number" id="thresholdConcurrency" value="20" min="1" max="1000">
+                  <div style="font-size:13px;color:var(--text-light);margin-top:6px;">
+                    Highlight intervals exceeding this concurrent logged-in user count
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <h2>🚀 Actions</h2>
+                <button id="btnFetchUsers" class="btn-block" style="margin-bottom:16px;" disabled>
+                  👥 1. Fetch Users
+                </button>
+                <button id="btnFetchConcurrency" class="btn-success btn-block" style="margin-bottom:16px;" disabled>
+                  📊 2. Analyse Concurrency
+                </button>
+                <button id="btnExport" class="btn-block" style="margin-bottom:16px;background:var(--text-light);" disabled>
+                  📥 Export Peak Report
+                </button>
+                <button id="btnReset" class="btn-danger btn-block">
+                  🔄 Reset Session
+                </button>
+                
+                <div class="info-box" style="margin-top:24px;">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                    <span style="background:var(--primary-color);color:white;padding:2px 12px;border-radius:20px;font-size:12px;">How it works</span>
+                  </div>
+                  <ul style="list-style-type:none;padding-left:0;">
+                    <li style="margin-bottom:8px;">✓ Fetches all active users from your org</li>
+                    <li style="margin-bottom:8px;">✓ Queries presence aggregates for each interval</li>
+                    <li style="margin-bottom:8px;">✓ Calculates concurrent logged-in users</li>
+                    <li style="margin-bottom:8px;">✓ Identifies peak usage times automatically</li>
+                    <li>✓ No interacting hours - pure concurrency analysis</li>
+                  </ul>
+                </div>
               </div>
             </div>
-            <div id="dateRangeInfo" style="font-size:13px;color:var(--text-light);text-align:center;margin-top:12px;padding:10px;background:var(--pill);border-radius:6px;">
-              Last 7 days selected
-            </div>
-          </div>
 
-          <div class="card">
-            <h2>⏱️ Granularity</h2>
-            <div class="granularity-selector" id="granularitySelector">
-              <div class="granularity-option" data-granularity="PT15M">15m</div>
-              <div class="granularity-option" data-granularity="PT30M">30m</div>
-              <div class="granularity-option active" data-granularity="PT60M">1h</div>
-              <div class="granularity-option" data-granularity="P1D">Daily</div>
-            </div>
-            
-            <div style="margin-top:24px;">
-              <label for="thresholdConcurrency">Concurrency Alert Threshold</label>
-              <input type="number" id="thresholdConcurrency" value="20" min="1" max="1000">
-              <div style="font-size:13px;color:var(--text-light);margin-top:6px;">
-                Highlight intervals exceeding this concurrent logged-in user count
+            <!-- Right Column - Results -->
+            <div class="right-column">
+              <!-- Key Stats -->
+              <div class="stats-grid">
+                <div class="stat-card">
+                  <div class="stat-label">Total Users</div>
+                  <div class="stat-value" id="statTotalUsers">0</div>
+                  <div style="font-size:12px;color:var(--text-light);">Active licensed users</div>
+                </div>
+                <div class="stat-card peak-stat">
+                  <div class="stat-label">Peak Concurrency</div>
+                  <div class="stat-value" id="statPeakConcurrency">0</div>
+                  <div style="font-size:12px;color:var(--text-light);">Max concurrent logged-in</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label">Avg Concurrency</div>
+                  <div class="stat-value" id="statAvgConcurrency">0</div>
+                  <div style="font-size:12px;color:var(--text-light);">Period average</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label">Total Intervals</div>
+                  <div class="stat-value" id="statTotalIntervals">0</div>
+                  <div style="font-size:12px;color:var(--text-light);">Time slices analysed</div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          <div class="card">
-            <h2>🚀 Actions</h2>
-            <button id="btnFetchUsers" class="btn-block" style="margin-bottom:16px;" disabled>
-              👥 1. Fetch Users
-            </button>
-            <button id="btnFetchConcurrency" class="btn-success btn-block" style="margin-bottom:16px;" disabled>
-              📊 2. Analyse Concurrency
-            </button>
-            <button id="btnExport" class="btn-block" style="margin-bottom:16px;background:var(--text-light);" disabled>
-              📥 Export Peak Report
-            </button>
-            <button id="btnReset" class="btn-danger btn-block">
-              🔄 Reset Session
-            </button>
-            
-            <div class="info-box" style="margin-top:24px;">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-                <span style="background:var(--primary-color);color:white;padding:2px 12px;border-radius:20px;font-size:12px;">How it works</span>
+              <!-- Peak Times Cards -->
+              <div class="peak-time-grid">
+                <div class="peak-card">
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:24px;">🏆</span>
+                    <h3 style="margin:0;font-size:18px;color:var(--text-color);">Overall Peak</h3>
+                  </div>
+                  <div class="peak-time" id="peakTimeOverall">--:--</div>
+                  <div style="color:var(--text-light);" id="peakConcurrencyOverall">0 concurrent users</div>
+                </div>
+                <div class="peak-card">
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:24px;">📅</span>
+                    <h3 style="margin:0;font-size:18px;color:var(--text-color);">Peak Day</h3>
+                  </div>
+                  <div class="peak-time" id="peakDay">--/--/----</div>
+                  <div style="color:var(--text-light);" id="peakDayConcurrency">0 concurrent users</div>
+                </div>
+                <div class="peak-card">
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:24px;">⏰</span>
+                    <h3 style="margin:0;font-size:18px;color:var(--text-color);">Busiest Hour</h3>
+                  </div>
+                  <div class="peak-time" id="peakHour">--:00</div>
+                  <div style="color:var(--text-light);" id="peakHourConcurrency">0 concurrent users</div>
+                </div>
               </div>
-              <ul style="list-style-type:none;padding-left:0;">
-                <li style="margin-bottom:8px;">✓ Fetches all active users from your org</li>
-                <li style="margin-bottom:8px;">✓ Queries presence aggregates for each interval</li>
-                <li style="margin-bottom:8px;">✓ Calculates concurrent logged-in users</li>
-                <li style="margin-bottom:8px;">✓ Identifies peak usage times automatically</li>
-                <li>✓ No interacting hours - pure concurrency analysis</li>
-              </ul>
-            </div>
-          </div>
-        </div>
 
-        <!-- Right Column - Results -->
-        <div class="right-column">
-          <!-- Key Stats -->
-          <div class="stats-grid">
-            <div class="stat-card">
-              <div class="stat-label">Total Users</div>
-              <div class="stat-value" id="statTotalUsers">0</div>
-              <div style="font-size:12px;color:var(--text-light);">Active licensed users</div>
-            </div>
-            <div class="stat-card peak-stat">
-              <div class="stat-label">Peak Concurrency</div>
-              <div class="stat-value" id="statPeakConcurrency">0</div>
-              <div style="font-size:12px;color:var(--text-light);">Max concurrent logged-in</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-label">Avg Concurrency</div>
-              <div class="stat-value" id="statAvgConcurrency">0</div>
-              <div style="font-size:12px;color:var(--text-light);">Period average</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-label">Total Intervals</div>
-              <div class="stat-value" id="statTotalIntervals">0</div>
-              <div style="font-size:12px;color:var(--text-light);">Time slices analysed</div>
-            </div>
-          </div>
-
-          <!-- Peak Times Cards -->
-          <div class="peak-time-grid">
-            <div class="peak-card">
-              <div style="display:flex;align-items:center;gap:8px;">
-                <span style="font-size:24px;">🏆</span>
-                <h3 style="margin:0;font-size:18px;color:var(--text-color);">Overall Peak</h3>
+              <!-- Concurrency Chart -->
+              <div class="card">
+                <h2>📊 Concurrency Over Time</h2>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                  <span id="granularityLabel" style="font-weight:600;color:var(--primary-color);background:var(--pill);padding:8px 16px;border-radius:20px;">
+                    1-hour intervals
+                  </span>
+                  <span style="background:rgba(220,53,69,0.1);padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;">
+                    Alert threshold: <span id="thresholdValue" style="color:var(--danger);">20</span> users
+                  </span>
+                </div>
+                <div class="chart-container">
+                  <canvas id="concurrencyChart"></canvas>
+                </div>
               </div>
-              <div class="peak-time" id="peakTimeOverall">--:--</div>
-              <div style="color:var(--text-light);" id="peakConcurrencyOverall">0 concurrent users</div>
-            </div>
-            <div class="peak-card">
-              <div style="display:flex;align-items:center;gap:8px;">
-                <span style="font-size:24px;">📅</span>
-                <h3 style="margin:0;font-size:18px;color:var(--text-color);">Peak Day</h3>
+
+              <!-- Peak Intervals Table -->
+              <div class="card">
+                <h2>⚠️ Peak Intervals (Exceeding Threshold)</h2>
+                <div class="table-container">
+                  <table id="peakTable">
+                    <thead>
+                      <tr>
+                        <th>Date & Time (UTC)</th>
+                        <th>Concurrent Users</th>
+                        <th>% of Peak</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="peakTableBody">
+                      <tr>
+                        <td colspan="4" style="text-align:center;padding:48px;color:var(--text-light);">
+                          No data yet. Fetch users and run concurrency analysis.
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <div class="peak-time" id="peakDay">--/--/----</div>
-              <div style="color:var(--text-light);" id="peakDayConcurrency">0 concurrent users</div>
-            </div>
-            <div class="peak-card">
-              <div style="display:flex;align-items:center;gap:8px;">
-                <span style="font-size:24px;">⏰</span>
-                <h3 style="margin:0;font-size:18px;color:var(--text-color);">Busiest Hour</h3>
+
+              <!-- All Intervals Data -->
+              <div class="card">
+                <h2>📋 All Intervals</h2>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                  <input type="text" id="searchInterval" placeholder="🔍 Search date/time..." style="max-width:300px;padding:12px;">
+                  <span style="font-size:13px;color:var(--text-light);background:var(--pill);padding:8px 16px;border-radius:20px;">
+                    Showing <span id="visibleIntervals">0</span>/<span id="totalIntervals">0</span> intervals
+                  </span>
+                </div>
+                <div class="table-container" style="max-height:400px;">
+                  <table id="intervalsTable">
+                    <thead>
+                      <tr>
+                        <th>Interval Start (UTC)</th>
+                        <th>Concurrent Users</th>
+                        <th>Change</th>
+                      </tr>
+                    </thead>
+                    <tbody id="intervalsTableBody">
+                      <tr>
+                        <td colspan="3" style="text-align:center;padding:48px;color:var(--text-light);">
+                          No data available.
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <div class="peak-time" id="peakHour">--:00</div>
-              <div style="color:var(--text-light);" id="peakHourConcurrency">0 concurrent users</div>
-            </div>
-          </div>
-
-          <!-- Concurrency Chart -->
-          <div class="card">
-            <h2>📊 Concurrency Over Time</h2>
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-              <span id="granularityLabel" style="font-weight:600;color:var(--primary-color);background:var(--pill);padding:8px 16px;border-radius:20px;">
-                1-hour intervals
-              </span>
-              <span style="background:rgba(220,53,69,0.1);padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;">
-                Alert threshold: <span id="thresholdValue" style="color:var(--danger);">20</span> users
-              </span>
-            </div>
-            <div class="chart-container" id="chartContainer">
-              <canvas id="concurrencyChart"></canvas>
-            </div>
-          </div>
-
-          <!-- Peak Intervals Table -->
-          <div class="card">
-            <h2>⚠️ Peak Intervals (Exceeding Threshold)</h2>
-            <div class="table-container">
-              <table id="peakTable">
-                <thead>
-                  <tr>
-                    <th>Date & Time (UTC)</th>
-                    <th>Concurrent Users</th>
-                    <th>% of Peak</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody id="peakTableBody">
-                  <tr>
-                    <td colspan="4" style="text-align:center;padding:48px;color:var(--text-light);">
-                      No data yet. Fetch users and run concurrency analysis.
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- All Intervals Data -->
-          <div class="card">
-            <h2>📋 All Intervals</h2>
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-              <input type="text" id="searchInterval" placeholder="🔍 Search date/time..." style="max-width:300px;padding:12px;">
-              <span style="font-size:13px;color:var(--text-light);background:var(--pill);padding:8px 16px;border-radius:20px;">
-                Showing <span id="visibleIntervals">0</span>/<span id="totalIntervals">0</span> intervals
-              </span>
-            </div>
-            <div class="table-container" style="max-height:400px;">
-              <table id="intervalsTable">
-                <thead>
-                  <tr>
-                    <th>Interval Start (UTC)</th>
-                    <th>Concurrent Users</th>
-                    <th>Change</th>
-                  </tr>
-                </thead>
-                <tbody id="intervalsTableBody">
-                  <tr>
-                    <td colspan="3" style="text-align:center;padding:48px;color:var(--text-light);">
-                      No data available.
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
             </div>
           </div>
         </div>
       </div>
-      
-      <div class="footer">
-        Genesys Cloud Concurrency Analyser | Dublin (mypurecloud.ie) | OAuth Client: fe305808-b368-4547-8af9-325d28d552bb
+
+      <!-- Settings Tab -->
+      <div id="Settings" class="tabcontent" style="display:none;">
+        <div class="container" style="max-width:800px;margin:0 auto;padding:40px 20px;">
+          <div class="card">
+            <h2>⚙️ Application Settings</h2>
+            <div class="info-box" style="margin-bottom:24px;">
+              <strong style="color:var(--primary-color);">🔐 Authentication Status:</strong><br>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:12px;">
+                <span class="status-indicator" id="settingsStatusIndicator" style="width:14px;height:14px;background:var(--danger);"></span>
+                <span id="settingsStatusText">Not Connected</span>
+              </div>
+            </div>
+            <div class="info-box">
+              <strong style="color:var(--primary-color);">📍 Environment:</strong> EU West (Dublin) - mypurecloud.ie<br>
+              <strong style="color:var(--primary-color);">📋 Client ID:</strong> fe305808-b368-4547-8af9-325d28d552bb<br>
+              <strong style="color:var(--primary-color);">📋 Redirect URI:</strong> https://gmcglynn88.github.io/ConcurrencyReporting/<br>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -716,18 +778,13 @@
     };
 
     // ==================== APP STATE ====================
-    let CURRENT_CONFIG = {
-      environment: ENVIRONMENTS['eu-west-1'].api,
-      environmentRegion: 'eu-west-1',
-      token: null,
-      tokenExpiry: null
-    };
-
     let appState = {
       isConnected: false,
+      token: null,
+      tokenExpiry: null,
+      environment: ENVIRONMENTS['eu-west-1'],
       users: [],
       concurrencyData: [],
-      peakData: [],
       stats: {
         totalUsers: 0,
         peakConcurrency: 0,
@@ -737,16 +794,12 @@
       },
       currentGranularity: 'PT60M',
       threshold: 20,
-      chart: null,
-      logs: [],
-      chartJsAvailable: false
+      chart: null
     };
 
     // ==================== DOM ELEMENTS ====================
     const el = {
-      authContainer: document.getElementById('authContainer'),
-      mainContent: document.getElementById('mainContent'),
-      btnAuthenticate: document.getElementById('btnAuthenticate'),
+      mainContent: document.getElementById('app-content'),
       btnDisconnect: document.getElementById('btnDisconnect'),
       btnFetchUsers: document.getElementById('btnFetchUsers'),
       btnFetchConcurrency: document.getElementById('btnFetchConcurrency'),
@@ -754,6 +807,8 @@
       btnReset: document.getElementById('btnReset'),
       statusIndicator: document.getElementById('statusIndicator'),
       statusText: document.getElementById('statusText'),
+      settingsStatusIndicator: document.getElementById('settingsStatusIndicator'),
+      settingsStatusText: document.getElementById('settingsStatusText'),
       dateFrom: document.getElementById('dateFrom'),
       dateTo: document.getElementById('dateTo'),
       dateRangeInfo: document.getElementById('dateRangeInfo'),
@@ -781,22 +836,131 @@
       loadingSubtext: document.getElementById('loadingSubtext'),
       loadingProgressFill: document.getElementById('loadingProgressFill'),
       statusContainer: document.getElementById('statusContainer'),
-      authSpinner: document.getElementById('authSpinner'),
-      authMessage: document.getElementById('authMessage'),
-      authStatus: document.getElementById('authStatus'),
-      chartContainer: document.getElementById('chartContainer'),
       concurrencyChart: document.getElementById('concurrencyChart')
     };
 
-    // ==================== UTILITIES ====================
-    function logMessage(level, message, details = '') {
-      const timestamp = new Date().toLocaleTimeString();
-      const logEntry = { timestamp, level, message, details };
-      appState.logs.unshift(logEntry);
-      console.log(`[${level}] ${message}`, details);
-      showStatusMessage(message, level.toLowerCase());
+    // ==================== AUTHENTICATION - EXACT PATTERN FROM WORKING APP ====================
+    function parseTokenFromHash() {
+      const hash = window.location.hash.replace(/^#/, '');
+      if (!hash) return {};
+      
+      const params = new URLSearchParams(hash);
+      return {
+        token: params.get('access_token'),
+        error: params.get('error'),
+        errorDescription: params.get('error_description'),
+        expiresIn: params.get('expires_in')
+      };
     }
 
+    function saveCredentials(token, expiresIn) {
+      try {
+        const tokenExpiry = Date.now() + (parseInt(expiresIn, 10) * 1000);
+        appState.token = token;
+        appState.tokenExpiry = tokenExpiry;
+        appState.isConnected = true;
+        appState.environment = ENVIRONMENTS['eu-west-1'];
+        
+        localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+        localStorage.setItem(STORAGE_KEYS.TOKEN_EXPIRY, tokenExpiry.toString());
+        localStorage.setItem(STORAGE_KEYS.ENVIRONMENT, 'eu-west-1');
+        
+        return true;
+      } catch (e) {
+        console.error('Failed to save credentials:', e);
+        return false;
+      }
+    }
+
+    function loadStoredCredentials() {
+      try {
+        const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+        const tokenExpiry = localStorage.getItem(STORAGE_KEYS.TOKEN_EXPIRY);
+        const environment = localStorage.getItem(STORAGE_KEYS.ENVIRONMENT);
+        
+        if (token && tokenExpiry && environment) {
+          const expiry = parseInt(tokenExpiry, 10);
+          if (Date.now() < expiry) {
+            appState.token = token;
+            appState.tokenExpiry = expiry;
+            appState.isConnected = true;
+            appState.environment = ENVIRONMENTS['eu-west-1'];
+            return true;
+          } else {
+            // Token expired, clear it
+            localStorage.removeItem(STORAGE_KEYS.TOKEN);
+            localStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRY);
+            localStorage.removeItem(STORAGE_KEYS.ENVIRONMENT);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load stored credentials:', e);
+      }
+      return false;
+    }
+
+    function clearCredentials() {
+      try {
+        localStorage.removeItem(STORAGE_KEYS.TOKEN);
+        localStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRY);
+        localStorage.removeItem(STORAGE_KEYS.ENVIRONMENT);
+        localStorage.removeItem(STORAGE_KEYS.DATE_FROM);
+        localStorage.removeItem(STORAGE_KEYS.DATE_TO);
+        localStorage.removeItem(STORAGE_KEYS.GRANULARITY);
+        localStorage.removeItem(STORAGE_KEYS.THRESHOLD);
+        
+        appState.token = null;
+        appState.tokenExpiry = null;
+        appState.isConnected = false;
+        appState.users = [];
+        appState.concurrencyData = [];
+      } catch (e) {
+        console.error('Failed to clear credentials:', e);
+      }
+    }
+
+    function authUrl() {
+      return `${ENVIRONMENTS['eu-west-1'].login}/oauth/authorize?client_id=${encodeURIComponent(CLIENT_ID)}&response_type=token&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+    }
+
+    function initAuth() {
+      console.log("Initializing authentication...");
+      
+      // First check URL hash for token (from OAuth redirect)
+      const { token, error, errorDescription, expiresIn } = parseTokenFromHash();
+      
+      // Clear the hash if it exists
+      if (window.location.hash) {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+
+      if (token) {
+        console.log("Token found in URL, authenticating...");
+        saveCredentials(token, expiresIn || '3600');
+        updateConnectionStatus(true);
+        showStatusMessage('✅ Authentication successful', 'success');
+        return;
+      }
+
+      if (error) {
+        console.log("Auth error:", error, errorDescription);
+        showStatusMessage(`❌ Authentication failed: ${errorDescription || error}`, 'error');
+      }
+
+      // Check for stored credentials
+      if (loadStoredCredentials()) {
+        console.log("Stored credentials found, authenticating...");
+        updateConnectionStatus(true);
+        showStatusMessage('✅ Authenticated with stored credentials', 'success');
+        return;
+      }
+
+      // No valid token - redirect to authenticate
+      console.log("No valid token found, redirecting to auth...");
+      window.location.href = authUrl();
+    }
+
+    // ==================== UTILITIES ====================
     function showStatusMessage(message, type = 'info') {
       const msgDiv = document.createElement('div');
       msgDiv.className = 'status-message';
@@ -804,7 +968,7 @@
       const color = type === 'success' ? 'var(--success)' : type === 'error' ? 'var(--danger)' : type === 'warn' ? 'var(--warning)' : 'var(--info)';
       msgDiv.style.borderLeftColor = color;
       msgDiv.innerHTML = `<span style="font-size:20px;">${icon}</span><div><div style="font-weight:600;">${message}</div><div style="font-size:12px;color:var(--text-light);">${new Date().toLocaleTimeString()}</div></div>`;
-      el.statusContainer.appendChild(msgDiv);
+      document.getElementById('statusContainer').appendChild(msgDiv);
       setTimeout(() => {
         if (msgDiv.parentNode) {
           msgDiv.style.opacity = '0';
@@ -826,6 +990,33 @@
 
     function updateLoadingProgress(percent) {
       el.loadingProgressFill.style.width = `${percent}%`;
+    }
+
+    function updateConnectionStatus(connected) {
+      appState.isConnected = connected;
+      
+      // Update main status
+      if (el.statusIndicator) {
+        el.statusIndicator.style.background = connected ? 'var(--success)' : 'var(--danger)';
+      }
+      if (el.statusText) {
+        el.statusText.textContent = connected ? 'Connected to Dublin' : 'Not Connected';
+        el.statusText.style.color = connected ? 'var(--success)' : 'var(--danger)';
+      }
+      
+      // Update settings status
+      if (el.settingsStatusIndicator) {
+        el.settingsStatusIndicator.style.background = connected ? 'var(--success)' : 'var(--danger)';
+      }
+      if (el.settingsStatusText) {
+        el.settingsStatusText.textContent = connected ? 'Connected to Dublin' : 'Not Connected';
+        el.settingsStatusText.style.color = connected ? 'var(--success)' : 'var(--danger)';
+      }
+      
+      // Enable/disable buttons
+      if (el.btnFetchUsers) {
+        el.btnFetchUsers.disabled = !connected;
+      }
     }
 
     function formatIntervalDate(intervalStr, granularity) {
@@ -863,20 +1054,6 @@
       }
     }
 
-    function updateDateRangeInfo() {
-      const fromDate = el.dateFrom.value;
-      const toDate = el.dateTo.value;
-      
-      if (fromDate && toDate) {
-        const start = new Date(fromDate);
-        const end = new Date(toDate);
-        const diffTime = Math.abs(end - start);
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-        
-        el.dateRangeInfo.innerHTML = `<strong>Selected:</strong> ${formatDateFromInterval(fromDate+'T00:00:00.000Z/')} to ${formatDateFromInterval(toDate+'T00:00:00.000Z/')} (${diffDays} days)`;
-      }
-    }
-
     function getLast7Days() {
       const today = new Date();
       const sevenDaysAgo = new Date();
@@ -887,231 +1064,52 @@
       };
     }
 
-    // ==================== AUTHENTICATION ====================
-    function loadStoredCredentials() {
-      try {
-        const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
-        const tokenExpiry = localStorage.getItem(STORAGE_KEYS.TOKEN_EXPIRY);
-        const environment = localStorage.getItem(STORAGE_KEYS.ENVIRONMENT);
-        
-        if (token && tokenExpiry && environment) {
-          const expiry = parseInt(tokenExpiry, 10);
-          if (Date.now() < expiry) {
-            CURRENT_CONFIG = {
-              token,
-              tokenExpiry: expiry,
-              environment: ENVIRONMENTS['eu-west-1'].api,
-              environmentRegion: 'eu-west-1'
-            };
-            appState.isConnected = true;
-            return true;
-          } else {
-            // Token expired, clear it
-            localStorage.removeItem(STORAGE_KEYS.TOKEN);
-            localStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRY);
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to load stored credentials:', e);
-      }
-      return false;
-    }
-
-    function saveCredentials(token, expiresIn) {
-      try {
-        const tokenExpiry = Date.now() + (parseInt(expiresIn, 10) * 1000);
-        CURRENT_CONFIG = { 
-          token, 
-          tokenExpiry, 
-          environment: ENVIRONMENTS['eu-west-1'].api, 
-          environmentRegion: 'eu-west-1' 
-        };
-        localStorage.setItem(STORAGE_KEYS.TOKEN, token);
-        localStorage.setItem(STORAGE_KEYS.TOKEN_EXPIRY, tokenExpiry.toString());
-        localStorage.setItem(STORAGE_KEYS.ENVIRONMENT, 'eu-west-1');
-        appState.isConnected = true;
-        return true;
-      } catch (e) {
-        console.error('Failed to save credentials:', e);
-        return false;
-      }
-    }
-
-    function clearCredentials() {
-      try {
-        localStorage.removeItem(STORAGE_KEYS.TOKEN);
-        localStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRY);
-        localStorage.removeItem(STORAGE_KEYS.ENVIRONMENT);
-        localStorage.removeItem(STORAGE_KEYS.DATE_FROM);
-        localStorage.removeItem(STORAGE_KEYS.DATE_TO);
-        localStorage.removeItem(STORAGE_KEYS.GRANULARITY);
-        localStorage.removeItem(STORAGE_KEYS.THRESHOLD);
-        CURRENT_CONFIG = { token: null, tokenExpiry: null, environment: null, environmentRegion: null };
-        appState.isConnected = false;
-        appState.users = [];
-        appState.concurrencyData = [];
-      } catch (e) {
-        console.error('Failed to clear credentials:', e);
-      }
-    }
-
-    function parseTokenFromHash() {
-      const hash = window.location.hash.replace(/^#/, '');
-      if (!hash) return {};
+    function updateDateRangeInfo() {
+      const fromDate = el.dateFrom.value;
+      const toDate = el.dateTo.value;
       
-      const params = new URLSearchParams(hash);
-      return {
-        token: params.get('access_token'),
-        error: params.get('error'),
-        errorDescription: params.get('error_description'),
-        expiresIn: params.get('expires_in')
-      };
-    }
-
-    function authUrl() {
-      return `${ENVIRONMENTS['eu-west-1'].login}/oauth/authorize?client_id=${encodeURIComponent(CLIENT_ID)}&response_type=token&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
-    }
-
-    function initAuth() {
-      // Check if Chart.js loaded
-      setTimeout(() => {
-        appState.chartJsAvailable = window.Chart !== undefined;
-        if (!appState.chartJsAvailable) {
-          console.warn('Chart.js failed to load - chart functionality will be disabled');
-          showStatusMessage('Chart library failed to load - using text-only display', 'warn');
-        }
-      }, 1000);
-
-      // First check URL hash for token
-      const { token, error, errorDescription, expiresIn } = parseTokenFromHash();
-      
-      if (window.location.hash) {
-        // Clear the hash
-        history.replaceState(null, '', window.location.pathname + window.location.search);
-      }
-
-      if (token) {
-        // Token found in URL - save it and authenticate
-        if (el.authStatus) el.authStatus.textContent = 'Token found in URL, authenticating...';
-        if (el.authMessage) el.authMessage.textContent = 'Authentication successful! Loading application...';
-        saveCredentials(token, expiresIn || '3600');
-        logMessage('SUCCESS', 'Authentication successful', 'Connected to Dublin');
-        showMainApp();
-        return;
-      }
-
-      if (error) {
-        // Error in URL - show manual button
-        if (el.authStatus) el.authStatus.textContent = `Authentication failed: ${error}`;
-        if (el.authMessage) el.authMessage.textContent = `❌ Authentication failed: ${errorDescription || error}`;
-        if (el.authSpinner) el.authSpinner.style.display = 'none';
-        if (el.btnAuthenticate) el.btnAuthenticate.style.display = 'block';
-        logMessage('ERROR', 'Authentication failed', `${error}: ${errorDescription || ''}`);
-        return;
-      }
-
-      // No token in URL - check stored credentials
-      if (el.authStatus) el.authStatus.textContent = 'Checking stored credentials...';
-      
-      if (loadStoredCredentials()) {
-        // Valid stored token exists
-        if (el.authStatus) el.authStatus.textContent = 'Stored token found, authenticating...';
-        if (el.authMessage) el.authMessage.textContent = 'Using stored credentials...';
-        logMessage('SUCCESS', 'Auto-authentication successful', 'Using stored credentials');
-        showMainApp();
-        return;
-      }
-
-      // No valid token - show manual button
-      if (el.authStatus) el.authStatus.textContent = 'No valid token found - please authenticate';
-      if (el.authMessage) el.authMessage.textContent = 'Please click the button below to authenticate with Genesys Cloud';
-      if (el.authSpinner) el.authSpinner.style.display = 'none';
-      if (el.btnAuthenticate) el.btnAuthenticate.style.display = 'block';
-      logMessage('INFO', 'Authentication required', 'No valid token found');
-    }
-
-    function showMainApp() {
-      el.authContainer.style.display = 'none';
-      el.mainContent.style.display = 'block';
-      updateConnectionStatus(true);
-      initializeApp();
-    }
-
-    function disconnect() {
-      clearCredentials();
-      appState.isConnected = false;
-      appState.users = [];
-      appState.concurrencyData = [];
-      updateConnectionStatus(false);
-      el.mainContent.style.display = 'none';
-      el.authContainer.style.display = 'block';
-      
-      // Reset auth container
-      if (el.authSpinner) el.authSpinner.style.display = 'block';
-      if (el.btnAuthenticate) el.btnAuthenticate.style.display = 'none';
-      if (el.authMessage) el.authMessage.textContent = 'Attempting automatic authentication...';
-      if (el.authStatus) el.authStatus.textContent = 'Checking for existing token...';
-      
-      logMessage('INFO', 'Disconnected from Genesys Cloud');
-      
-      // Check for stored credentials again
-      setTimeout(() => initAuth(), 500);
-    }
-
-    function updateConnectionStatus(connected) {
-      appState.isConnected = connected;
-      if (connected) {
-        el.statusIndicator.style.background = 'var(--success)';
-        el.statusText.textContent = 'Connected to Dublin';
-        el.statusText.style.color = 'var(--success)';
-        el.btnFetchUsers.disabled = false;
-      } else {
-        el.statusIndicator.style.background = 'var(--danger)';
-        el.statusText.textContent = 'Not Connected';
-        el.statusText.style.color = 'var(--danger)';
-        el.btnFetchUsers.disabled = true;
-        el.btnFetchConcurrency.disabled = true;
-        el.btnExport.disabled = true;
+      if (fromDate && toDate) {
+        const start = new Date(fromDate);
+        const end = new Date(toDate);
+        const diffTime = Math.abs(end - start);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        el.dateRangeInfo.innerHTML = `<strong>Selected:</strong> ${formatDateFromInterval(fromDate+'T00:00:00.000Z/')} to ${formatDateFromInterval(toDate+'T00:00:00.000Z/')} (${diffDays} days)`;
       }
     }
 
     // ==================== API CALLS ====================
     async function apiCall(path, options = {}) {
-      if (!appState.isConnected || !CURRENT_CONFIG.token) {
+      if (!appState.isConnected || !appState.token) {
         throw new Error('Not authenticated');
       }
 
-      if (Date.now() > CURRENT_CONFIG.tokenExpiry) {
-        // Token expired, try to clear and reconnect
+      if (Date.now() > appState.tokenExpiry) {
         clearCredentials();
         throw new Error('Token expired. Please reconnect.');
       }
 
-      const url = `${CURRENT_CONFIG.environment}${path}`;
+      const url = `${appState.environment.api}${path}`;
       const response = await fetch(url, {
         ...options,
         headers: {
-          'Authorization': `Bearer ${CURRENT_CONFIG.token}`,
+          'Authorization': `Bearer ${appState.token}`,
           'Content-Type': 'application/json',
           ...options.headers
         }
       });
 
       if (response.status === 401) {
-        appState.isConnected = false;
         clearCredentials();
         throw new Error('Authentication expired. Please reconnect.');
       }
       
       if (response.status === 429) {
         const retryAfter = response.headers.get('Retry-After') || 5;
-        logMessage('WARN', `Rate limit hit, waiting ${retryAfter}s`);
         await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
         return apiCall(path, options);
       }
 
       if (!response.ok) {
-        const errorText = await response.text().catch(() => '');
         throw new Error(`API Error: ${response.status} ${response.statusText}`);
       }
 
@@ -1149,7 +1147,7 @@
         appState.stats.totalUsers = allUsers.length;
         el.statTotalUsers.textContent = allUsers.length;
         
-        logMessage('SUCCESS', `Fetched ${allUsers.length} active users`);
+        showStatusMessage(`✅ Fetched ${allUsers.length} active users`, 'success');
         el.btnFetchConcurrency.disabled = false;
         
         updateLoadingProgress(100);
@@ -1157,8 +1155,7 @@
         
       } catch (error) {
         setLoading(false);
-        logMessage('ERROR', 'Failed to fetch users', error.message);
-        showStatusMessage('❌ Failed to fetch users', 'error');
+        showStatusMessage(`❌ Failed to fetch users: ${error.message}`, 'error');
       }
     }
 
@@ -1183,14 +1180,12 @@
         const interval = `${dateFrom}T00:00:00.000Z/${dateTo}T23:59:59.999Z`;
         const granularity = appState.currentGranularity;
         
-        logMessage('INFO', 'Querying concurrency', `Interval: ${interval}, Granularity: ${granularity}`);
-
         // Get all user IDs
         const userIds = appState.users.map(u => u.id);
-        const batchSize = 25; // Smaller batches to avoid timeouts
+        const batchSize = 25;
         const concurrencyMap = new Map();
         
-        // Generate all possible intervals first
+        // Generate all possible intervals
         const intervals = generateIntervals(dateFrom, dateTo, granularity);
         intervals.forEach(interval => {
           concurrencyMap.set(interval, new Set());
@@ -1206,7 +1201,6 @@
           
           el.loadingSubtext.innerHTML = `Processing batch ${Math.floor(i/batchSize)+1} of ${Math.ceil(userIds.length/batchSize)}...`;
 
-          // Build query for this batch
           const queryBody = {
             interval: interval,
             granularity: granularity,
@@ -1235,9 +1229,6 @@
                   const presenceData = result.data.find(d => d.metric === 'tSystemPresence');
                   
                   if (presenceData && presenceData.stats && presenceData.stats.count > 0) {
-                    // User was present - mark them as logged in
-                    // For each interval where they were present, add to the set
-                    // This is simplified - in production you'd want the actual time series
                     const presenceCount = Math.min(presenceData.stats.count || 0, intervals.length);
                     
                     for (let j = 0; j < presenceCount; j++) {
@@ -1254,10 +1245,9 @@
               });
             }
           } catch (batchError) {
-            logMessage('WARN', `Batch query failed for users ${i}-${i+batchSize}`, batchError.message);
+            console.warn(`Batch query failed for users ${i}-${i+batchSize}`, batchError);
           }
 
-          // Rate limiting - 150ms between batches
           await new Promise(resolve => setTimeout(resolve, 150));
         }
 
@@ -1306,13 +1296,11 @@
         updateLoadingProgress(100);
         setTimeout(() => setLoading(false), 500);
         
-        logMessage('SUCCESS', 'Concurrency analysis complete', 
-          `${concurrencyData.length} intervals, peak: ${peakConcurrency} concurrent users`);
+        showStatusMessage(`✅ Concurrency analysis complete - Peak: ${peakConcurrency} users`, 'success');
         
       } catch (error) {
         setLoading(false);
-        logMessage('ERROR', 'Concurrency analysis failed', error.message);
-        showStatusMessage('❌ Failed to analyse concurrency', 'error');
+        showStatusMessage(`❌ Failed to analyse concurrency: ${error.message}`, 'error');
       }
     }
 
@@ -1345,7 +1333,6 @@
     function calculatePeakTimes() {
       if (appState.concurrencyData.length === 0) return;
       
-      // Overall peak
       const peak = appState.concurrencyData.reduce((max, curr) => 
         curr.concurrent > max.concurrent ? curr : max
       );
@@ -1360,10 +1347,7 @@
       const dayMap = new Map();
       appState.concurrencyData.forEach(item => {
         const day = formatDateFromInterval(item.interval);
-        if (!dayMap.has(day)) {
-          dayMap.set(day, 0);
-        }
-        if (item.concurrent > dayMap.get(day)) {
+        if (!dayMap.has(day) || item.concurrent > dayMap.get(day)) {
           dayMap.set(day, item.concurrent);
         }
       });
@@ -1380,14 +1364,11 @@
       el.peakDay.textContent = peakDay || '--/--/----';
       el.peakDayConcurrency.textContent = `${peakDayValue} concurrent users`;
       
-      // Peak hour (across all days)
+      // Peak hour
       const hourMap = new Map();
       appState.concurrencyData.forEach(item => {
         const hour = formatHourFromInterval(item.interval);
-        if (!hourMap.has(hour)) {
-          hourMap.set(hour, 0);
-        }
-        if (item.concurrent > hourMap.get(hour)) {
+        if (!hourMap.has(hour) || item.concurrent > hourMap.get(hour)) {
           hourMap.set(hour, item.concurrent);
         }
       });
@@ -1410,7 +1391,6 @@
       el.statPeakConcurrency.textContent = appState.stats.peakConcurrency;
       el.statAvgConcurrency.textContent = appState.stats.avgConcurrency;
       el.statTotalIntervals.textContent = appState.stats.totalIntervals;
-      
       el.thresholdValue.textContent = appState.threshold;
       
       let granularityText = '1-hour';
@@ -1422,21 +1402,14 @@
     }
 
     function renderConcurrencyChart() {
-      if (!appState.chartJsAvailable || !window.Chart) {
-        // Show fallback message
-        el.chartContainer.innerHTML = '<div class="no-chart-fallback">📊 Chart library unavailable - showing text data only<br><span style="font-size:12px;margin-top:10px;">See tables below for concurrency data</span></div>';
-        return;
-      }
-
-      if (!el.concurrencyChart) return;
-
+      if (!el.concurrencyChart || !window.Chart) return;
+      
       if (appState.chart) {
         appState.chart.destroy();
       }
 
       if (appState.concurrencyData.length === 0) return;
 
-      // Only show last 50 points for performance with 15m intervals
       let displayData = appState.concurrencyData;
       if (displayData.length > 100) {
         displayData = displayData.slice(-100);
@@ -1449,90 +1422,67 @@
       const data = displayData.map(item => item.concurrent);
       const threshold = appState.threshold;
 
-      try {
-        appState.chart = new Chart(el.concurrencyChart, {
-          type: 'line',
-          data: {
-            labels: labels,
-            datasets: [
-              {
-                label: 'Concurrent Logged-in Users',
-                data: data,
-                borderColor: '#63AB8F',
-                backgroundColor: 'rgba(99, 171, 143, 0.1)',
-                borderWidth: 2,
-                pointRadius: 3,
-                pointHoverRadius: 6,
-                pointBackgroundColor: '#63AB8F',
-                pointBorderColor: '#fff',
-                tension: 0.1,
-                fill: true
-              },
-              {
-                label: 'Alert Threshold',
-                data: Array(data.length).fill(threshold),
-                borderColor: '#dc3545',
-                borderWidth: 2,
-                borderDash: [5, 5],
-                pointRadius: 0,
-                fill: false
-              }
-            ]
+      appState.chart = new Chart(el.concurrencyChart, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Concurrent Logged-in Users',
+              data: data,
+              borderColor: '#63AB8F',
+              backgroundColor: 'rgba(99, 171, 143, 0.1)',
+              borderWidth: 2,
+              pointRadius: 3,
+              pointHoverRadius: 6,
+              pointBackgroundColor: '#63AB8F',
+              pointBorderColor: '#fff',
+              tension: 0.1,
+              fill: true
+            },
+            {
+              label: 'Alert Threshold',
+              data: Array(data.length).fill(threshold),
+              borderColor: '#dc3545',
+              borderWidth: 2,
+              borderDash: [5, 5],
+              pointRadius: 0,
+              fill: false
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            intersect: false,
+            mode: 'index'
           },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-              intersect: false,
-              mode: 'index'
-            },
-            plugins: {
-              tooltip: {
-                callbacks: {
-                  afterBody: function(context) {
-                    const idx = context[0].dataIndex;
-                    const item = displayData[idx];
-                    if (item.concurrent > threshold) {
-                      return '⚠️ Exceeds threshold!';
-                    }
-                    return '';
+          plugins: {
+            tooltip: {
+              callbacks: {
+                afterBody: function(context) {
+                  const idx = context[0].dataIndex;
+                  const item = displayData[idx];
+                  if (item.concurrent > threshold) {
+                    return '⚠️ Exceeds threshold!';
                   }
-                }
-              },
-              legend: {
-                position: 'top',
-                labels: { 
-                  usePointStyle: true,
-                  font: {
-                    family: "'Aptos', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif",
-                    size: 12
-                  }
-                }
-              }
-            },
-            scales: {
-              y: {
-                beginAtZero: true,
-                title: {
-                  display: true,
-                  text: 'Concurrent Users'
-                },
-                grid: {
-                  color: 'rgba(0,0,0,0.05)'
-                }
-              },
-              x: {
-                grid: {
-                  display: false
+                  return '';
                 }
               }
             }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Concurrent Users'
+              }
+            }
           }
-        });
-      } catch (e) {
-        console.error('Failed to render chart:', e);
-        el.chartContainer.innerHTML = '<div class="no-chart-fallback">📊 Failed to render chart - showing text data only</div>';
-      }
+        }
+      });
     }
 
     function renderPeakTable() {
@@ -1562,7 +1512,6 @@
         
         if (percentage >= 90) {
           statusText = 'Critical Peak';
-          statusClass = 'peak-badge';
         } else if (percentage >= 70) {
           statusText = 'High Usage';
           statusClass = 'high-badge';
@@ -1669,7 +1618,6 @@
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      logMessage('SUCCESS', 'Report exported', 'CSV file downloaded');
       showStatusMessage('✅ Report exported successfully', 'success');
     }
 
@@ -1685,7 +1633,6 @@
           peakInterval: null
         };
         
-        // Reset UI
         el.statTotalUsers.textContent = '0';
         el.statPeakConcurrency.textContent = '0';
         el.statAvgConcurrency.textContent = '0';
@@ -1705,98 +1652,94 @@
           appState.chart = null;
         }
         
-        // Restore chart container if it was replaced
-        if (!el.concurrencyChart || !document.body.contains(el.concurrencyChart)) {
-          el.chartContainer.innerHTML = '<canvas id="concurrencyChart"></canvas>';
-          el.concurrencyChart = document.getElementById('concurrencyChart');
-        }
-        
         renderPeakTable();
         renderIntervalsTable();
         
-        logMessage('INFO', 'Application reset', 'All data cleared');
         showStatusMessage('🔄 Application reset', 'info');
+      }
+    }
+
+    // ==================== TABS ====================
+    function openTabById(tabId) {
+      const tabs = document.getElementsByClassName("tabcontent");
+      for (let i = 0; i < tabs.length; i++) {
+        tabs[i].style.display = "none";
+      }
+      
+      const el = document.getElementById(tabId);
+      if (el) {
+        el.style.display = "flex";
+      }
+      
+      const links = document.getElementsByClassName("tablinks");
+      for (let i = 0; i < links.length; i++) {
+        links[i].classList.toggle("active", links[i].getAttribute("data-tab") === tabId);
       }
     }
 
     // ==================== INITIALISATION ====================
     function initializeApp() {
-      // Set max date to today
+      console.log("Initializing app...");
+      
+      // Set default dates
       const today = new Date();
-      const todayStr = today.toISOString().split('T')[0];
-      if (el.dateTo) el.dateTo.max = todayStr;
-      if (el.dateFrom) el.dateFrom.max = todayStr;
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(today.getDate() - 7);
       
-      // Load stored preferences
-      const storedFrom = localStorage.getItem(STORAGE_KEYS.DATE_FROM);
-      const storedTo = localStorage.getItem(STORAGE_KEYS.DATE_TO);
-      const storedGranularity = localStorage.getItem(STORAGE_KEYS.GRANULARITY);
-      const storedThreshold = localStorage.getItem(STORAGE_KEYS.THRESHOLD);
-      
-      if (storedFrom && storedTo && el.dateFrom && el.dateTo) {
-        el.dateFrom.value = storedFrom;
-        el.dateTo.value = storedTo;
-      } else {
-        const last7Days = getLast7Days();
-        if (el.dateFrom) el.dateFrom.value = last7Days.from;
-        if (el.dateTo) el.dateTo.value = last7Days.to;
-      }
-      
-      if (storedGranularity) {
-        appState.currentGranularity = storedGranularity;
-        el.granularityOptions.forEach(opt => {
-          opt.classList.toggle('active', opt.dataset.granularity === storedGranularity);
-        });
-      }
-      
-      if (storedThreshold && el.thresholdConcurrency) {
-        appState.threshold = parseInt(storedThreshold);
-        el.thresholdConcurrency.value = storedThreshold;
-        if (el.thresholdValue) el.thresholdValue.textContent = storedThreshold;
-      }
-
-      // Save dates when changed
-      if (el.dateFrom) {
-        el.dateFrom.addEventListener('change', () => {
-          localStorage.setItem(STORAGE_KEYS.DATE_FROM, el.dateFrom.value);
-          updateDateRangeInfo();
-        });
-      }
-      if (el.dateTo) {
-        el.dateTo.addEventListener('change', () => {
-          localStorage.setItem(STORAGE_KEYS.DATE_TO, el.dateTo.value);
-          updateDateRangeInfo();
-        });
-      }
+      if (el.dateFrom) el.dateFrom.value = sevenDaysAgo.toISOString().split('T')[0];
+      if (el.dateTo) el.dateTo.value = today.toISOString().split('T')[0];
       
       updateDateRangeInfo();
 
       // Event listeners
-      if (el.btnAuthenticate) {
-        el.btnAuthenticate.addEventListener('click', () => {
+      document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.tablinks');
+        if (!btn) return;
+        e.preventDefault();
+        const tabId = btn.getAttribute('data-tab');
+        openTabById(tabId);
+      });
+
+      if (el.btnDisconnect) {
+        el.btnDisconnect.addEventListener('click', function() {
+          clearCredentials();
+          updateConnectionStatus(false);
+          showStatusMessage('Disconnected', 'info');
           window.location.href = authUrl();
         });
       }
 
-      if (el.btnDisconnect) el.btnDisconnect.addEventListener('click', disconnect);
-      if (el.btnFetchUsers) el.btnFetchUsers.addEventListener('click', fetchUsers);
-      if (el.btnFetchConcurrency) el.btnFetchConcurrency.addEventListener('click', fetchConcurrency);
-      if (el.btnExport) el.btnExport.addEventListener('click', exportReport);
-      if (el.btnReset) el.btnReset.addEventListener('click', resetApplication);
+      if (el.btnFetchUsers) {
+        el.btnFetchUsers.addEventListener('click', fetchUsers);
+      }
+
+      if (el.btnFetchConcurrency) {
+        el.btnFetchConcurrency.addEventListener('click', fetchConcurrency);
+      }
+
+      if (el.btnExport) {
+        el.btnExport.addEventListener('click', exportReport);
+      }
+
+      if (el.btnReset) {
+        el.btnReset.addEventListener('click', resetApplication);
+      }
 
       // Granularity selector
-      el.granularityOptions.forEach(opt => {
-        opt.addEventListener('click', function() {
-          el.granularityOptions.forEach(o => o.classList.remove('active'));
-          this.classList.add('active');
-          appState.currentGranularity = this.dataset.granularity;
-          localStorage.setItem(STORAGE_KEYS.GRANULARITY, appState.currentGranularity);
-          
-          if (appState.concurrencyData.length > 0) {
-            showStatusMessage('Granularity changed - re-run analysis to apply', 'info');
-          }
+      if (el.granularityOptions) {
+        el.granularityOptions.forEach(opt => {
+          opt.addEventListener('click', function() {
+            el.granularityOptions.forEach(o => o.classList.remove('active'));
+            this.classList.add('active');
+            appState.currentGranularity = this.dataset.granularity;
+            localStorage.setItem(STORAGE_KEYS.GRANULARITY, appState.currentGranularity);
+            
+            if (appState.concurrencyData.length > 0) {
+              showStatusMessage('Granularity changed - re-run analysis to apply', 'info');
+            }
+          });
         });
-      });
+      }
 
       // Threshold change
       if (el.thresholdConcurrency) {
@@ -1817,11 +1760,34 @@
         el.searchInterval.addEventListener('input', renderIntervalsTable);
       }
 
-      logMessage('INFO', 'Concurrency Analyser initialised', 'Ready for Dublin org');
+      // Date change handlers
+      if (el.dateFrom) {
+        el.dateFrom.addEventListener('change', function() {
+          localStorage.setItem(STORAGE_KEYS.DATE_FROM, el.dateFrom.value);
+          updateDateRangeInfo();
+        });
+      }
+      
+      if (el.dateTo) {
+        el.dateTo.addEventListener('change', function() {
+          localStorage.setItem(STORAGE_KEYS.DATE_TO, el.dateTo.value);
+          updateDateRangeInfo();
+        });
+      }
+
+      // Open default tab
+      openTabById('Concurrency');
+      
+      showStatusMessage('Ready - Authenticated with Genesys Cloud', 'success');
     }
 
-    // Start authentication immediately
-    initAuth();
+    // ==================== START ====================
+    // This is the exact pattern from your working app - immediate auth on page load
+    window.onload = function() {
+      console.log("Page loaded, initializing...");
+      initAuth();
+      initializeApp();
+    };
   </script>
 </body>
 </html>
