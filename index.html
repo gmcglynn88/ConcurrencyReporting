@@ -40,11 +40,22 @@
       border:1px solid var(--border-color); display:flex; justify-content:space-between;
       align-items:center; flex-wrap:wrap;
     }
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+    }
+    .brand-main {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
     h1{
       color:var(--text-color); font-size:32px; font-weight:600; display:flex;
-      align-items:center; gap:12px;
+      align-items:center; gap:12px; margin:0;
     }
-    .subtitle{ color:var(--text-light); font-size:17px; margin-top:6px; }
+    .subtitle{ 
+      color:var(--text-light); font-size:17px; margin-top:4px; 
+    }
     .main-grid{ display:grid; grid-template-columns:400px 1fr; gap:32px; }
     @media(max-width:1200px){ .main-grid{grid-template-columns:1fr;} }
     .card{
@@ -180,10 +191,6 @@
       box-shadow:0 2px 8px rgba(0,0,0,.05);
     }
     .peak-time{ font-size:28px; font-weight:700; color:var(--danger); margin:12px 0; }
-    .auth-card{
-      background:var(--card-bg); border-radius:14px; padding:40px; border:1px solid var(--border-color);
-      box-shadow:0 2px 8px rgba(0,0,0,.05); text-align:center;
-    }
     .connection-status{
       display:flex; align-items:center; gap:12px; background:var(--light-bg);
       padding:12px 24px; border-radius:30px;
@@ -195,261 +202,218 @@
       background:rgba(99,171,143,0.05); border-radius:8px; padding:16px; margin-top:16px;
       font-size:13px; color:var(--text-light);
     }
-    .button-container { display: flex; gap: 10px; align-items: center; }
-    .save-button {
-      padding: 8px 16px; background: var(--primary-color); color: #fff; border: none;
-      border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 600; transition: .3s;
-    }
-    .save-button:hover { background: var(--secondary-color); }
-    .brand { display: flex; align-items: center; gap: 10px; }
-    .brand-logo, .logo { height: 40px; object-fit: contain; }
+    .brand { display: flex; align-items: center; gap: 15px; }
+    .brand-logo { height: 40px; object-fit: contain; }
     .divider { border: none; height: 1px; background: var(--border-color); margin: 0; }
-    .tab-container {
-      display: flex; justify-content: space-between; align-items: center;
-      background: var(--light-bg); border-bottom: 1px solid var(--border-color); padding: 0 20px;
-    }
-    .tab { display: flex; }
-    .tab button {
-      background: transparent; border: none; cursor: pointer; padding: 12px 20px;
-      font-size: 15px; color: var(--text-light); font-weight: 600;
-      border-bottom: 3px solid transparent; transition: .3s;
-    }
-    .tab button:hover { color: var(--primary-color); }
-    .tab button.active { color: var(--primary-color); border-bottom: 3px solid var(--primary-color); }
   </style>
 </head>
 <body>
   <div id="app-content" style="width:100%;height:100%;flex:1;display:flex;flex-direction:column;">
     <header>
       <div class="brand">
-        <img src="https://raw.githubusercontent.com/gmcglynn88/TimeoffApp/main/YourTime%20Logo_WEM_White%20Reversed.png" alt="Your Time" class="brand-logo" style="height:40px;">
+        <img src="https://raw.githubusercontent.com/gmcglynn88/TimeoffApp/main/YourTime%20Logo_WEM_White%20Reversed.png" alt="Your Time" class="brand-logo">
+        <div class="brand-text">
+          <div class="brand-main">
+            <h1>📊 Concurrency & Peak Time Analyser</h1>
+          </div>
+          <div class="subtitle">Genesys Cloud - Real-time presence concurrency analysis</div>
+        </div>
       </div>
-      <img src="https://raw.githubusercontent.com/gmcglynn88/TimeoffApp/main/IPI_Primary%20Identity_Corporate_REVERSED_ECC.png" alt="Consulting Logo" class="logo" style="height:40px;">
+      <div class="connection-status" id="connectionStatus">
+        <span class="status-indicator" id="statusIndicator"></span>
+        <span id="statusText">Initialising...</span>
+      </div>
     </header>
     <hr class="divider">
 
-    <div class="tab-container">
-      <div class="tab">
-        <button class="tablinks active" data-tab="Concurrency">📊 Concurrency Analyser</button>
-        <button class="tablinks" data-tab="Settings">⚙️ Settings</button>
-      </div>
-      <div class="button-container">
-        <button class="save-button" id="btnDisconnect" style="background:var(--danger);">Disconnect</button>
-      </div>
-    </div>
-
     <div class="main-content">
-      <!-- Concurrency Tab -->
-      <div id="Concurrency" class="tabcontent" style="display:flex;">
-        <div class="container" style="width:100%;">
-          <div class="main-grid">
-            <!-- Left Column - Controls -->
-            <div class="left-column">
-              <div class="card">
-                <h2>📅 Analysis Period</h2>
-                <div class="date-range-simple">
-                  <div class="date-field-simple">
-                    <label for="dateFrom">From Date</label>
-                    <input type="date" id="dateFrom" required>
-                  </div>
-                  <div class="date-field-simple">
-                    <label for="dateTo">To Date</label>
-                    <input type="date" id="dateTo" required>
-                  </div>
+      <div class="container" style="width:100%;padding:20px;">
+        <div class="main-grid">
+          <!-- Left Column - Controls -->
+          <div class="left-column">
+            <div class="card">
+              <h2>📅 Analysis Period</h2>
+              <div class="date-range-simple">
+                <div class="date-field-simple">
+                  <label for="dateFrom">From Date</label>
+                  <input type="date" id="dateFrom" required>
                 </div>
-                <div id="dateRangeInfo" style="font-size:13px;color:var(--text-light);text-align:center;margin-top:12px;padding:10px;background:var(--pill);border-radius:6px;">
-                  Last 7 days selected
+                <div class="date-field-simple">
+                  <label for="dateTo">To Date</label>
+                  <input type="date" id="dateTo" required>
                 </div>
               </div>
-
-              <div class="card">
-                <h2>⏱️ Granularity</h2>
-                <div class="granularity-selector" id="granularitySelector">
-                  <div class="granularity-option" data-granularity="PT15M">15m</div>
-                  <div class="granularity-option" data-granularity="PT30M">30m</div>
-                  <div class="granularity-option active" data-granularity="PT60M">1h</div>
-                  <div class="granularity-option" data-granularity="P1D">Daily</div>
-                </div>
-                
-                <div style="margin-top:24px;">
-                  <label for="thresholdConcurrency">Concurrency Alert Threshold</label>
-                  <input type="number" id="thresholdConcurrency" value="20" min="1" max="1000">
-                  <div style="font-size:13px;color:var(--text-light);margin-top:6px;">
-                    Highlight intervals exceeding this concurrent logged-in user count
-                  </div>
-                </div>
+              <div id="dateRangeInfo" style="font-size:13px;color:var(--text-light);text-align:center;margin-top:12px;padding:10px;background:var(--pill);border-radius:6px;">
+                Last 7 days selected
               </div>
+            </div>
 
-              <div class="card">
-                <h2>🚀 Actions</h2>
-                <button id="btnFetchUsers" class="btn-block" style="margin-bottom:16px;" disabled>
-                  👥 1. Fetch Users
-                </button>
-                <button id="btnFetchConcurrency" class="btn-success btn-block" style="margin-bottom:16px;" disabled>
-                  📊 2. Analyse Concurrency
-                </button>
-                <button id="btnExport" class="btn-block" style="margin-bottom:16px;background:var(--text-light);" disabled>
-                  📥 Export Peak Report
-                </button>
-                <button id="btnReset" class="btn-danger btn-block">
-                  🔄 Reset Session
-                </button>
-                
-                <div class="info-box" style="margin-top:24px;">
-                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-                    <span style="background:var(--primary-color);color:white;padding:2px 12px;border-radius:20px;font-size:12px;">How it works</span>
-                  </div>
-                  <ul style="list-style-type:none;padding-left:0;">
-                    <li style="margin-bottom:8px;">✓ Fetches all active users</li>
-                    <li style="margin-bottom:8px;">✓ Queries presence history via User Details API</li>
-                    <li style="margin-bottom:8px;">✓ Splits long date ranges into 7-day windows</li>
-                    <li style="margin-bottom:8px;">✓ Calculates concurrent logged-in users</li>
-                    <li style="margin-bottom:8px;">✓ Identifies peak usage times automatically</li>
-                    <li>✓ No interacting hours - pure concurrency analysis</li>
-                  </ul>
+            <div class="card">
+              <h2>⏱️ Granularity</h2>
+              <div class="granularity-selector" id="granularitySelector">
+                <div class="granularity-option" data-granularity="PT15M">15m</div>
+                <div class="granularity-option" data-granularity="PT30M">30m</div>
+                <div class="granularity-option active" data-granularity="PT60M">1h</div>
+                <div class="granularity-option" data-granularity="P1D">Daily</div>
+              </div>
+              
+              <div style="margin-top:24px;">
+                <label for="thresholdConcurrency">Concurrency Alert Threshold</label>
+                <input type="number" id="thresholdConcurrency" value="20" min="1" max="1000">
+                <div style="font-size:13px;color:var(--text-light);margin-top:6px;">
+                  Highlight intervals exceeding this concurrent logged-in user count
                 </div>
               </div>
             </div>
 
-            <!-- Right Column - Results -->
-            <div class="right-column">
-              <!-- Key Stats -->
-              <div class="stats-grid">
-                <div class="stat-card">
-                  <div class="stat-label">Total Users</div>
-                  <div class="stat-value" id="statTotalUsers">0</div>
-                  <div style="font-size:12px;color:var(--text-light);">Active licensed users</div>
+            <div class="card">
+              <h2>🚀 Actions</h2>
+              <button id="btnFetchUsers" class="btn-block" style="margin-bottom:16px;" disabled>
+                👥 1. Fetch Users
+              </button>
+              <button id="btnFetchConcurrency" class="btn-success btn-block" style="margin-bottom:16px;" disabled>
+                📊 2. Analyse Concurrency
+              </button>
+              <button id="btnExport" class="btn-block" style="margin-bottom:16px;background:var(--text-light);" disabled>
+                📥 Export Peak Report
+              </button>
+              <button id="btnReset" class="btn-danger btn-block">
+                🔄 Reset Session
+              </button>
+              
+              <div class="info-box" style="margin-top:24px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                  <span style="background:var(--primary-color);color:white;padding:2px 12px;border-radius:20px;font-size:12px;">How it works</span>
                 </div>
-                <div class="stat-card peak-stat">
-                  <div class="stat-label">Peak Concurrency</div>
-                  <div class="stat-value" id="statPeakConcurrency">0</div>
-                  <div style="font-size:12px;color:var(--text-light);">Max concurrent logged-in</div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-label">Avg Concurrency</div>
-                  <div class="stat-value" id="statAvgConcurrency">0</div>
-                  <div style="font-size:12px;color:var(--text-light);">Period average</div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-label">Total Intervals</div>
-                  <div class="stat-value" id="statTotalIntervals">0</div>
-                  <div style="font-size:12px;color:var(--text-light);">Time slices analysed</div>
-                </div>
-              </div>
-
-              <!-- Peak Times Cards -->
-              <div class="peak-time-grid">
-                <div class="peak-card">
-                  <div style="display:flex;align-items:center;gap:8px;">
-                    <span style="font-size:24px;">🏆</span>
-                    <h3 style="margin:0;font-size:18px;color:var(--text-color);">Overall Peak</h3>
-                  </div>
-                  <div class="peak-time" id="peakTimeOverall">--:--</div>
-                  <div style="color:var(--text-light);" id="peakConcurrencyOverall">0 concurrent users</div>
-                </div>
-                <div class="peak-card">
-                  <div style="display:flex;align-items:center;gap:8px;">
-                    <span style="font-size:24px;">📅</span>
-                    <h3 style="margin:0;font-size:18px;color:var(--text-color);">Peak Day</h3>
-                  </div>
-                  <div class="peak-time" id="peakDay">--/--/----</div>
-                  <div style="color:var(--text-light);" id="peakDayConcurrency">0 concurrent users</div>
-                </div>
-                <div class="peak-card">
-                  <div style="display:flex;align-items:center;gap:8px;">
-                    <span style="font-size:24px;">⏰</span>
-                    <h3 style="margin:0;font-size:18px;color:var(--text-color);">Busiest Hour</h3>
-                  </div>
-                  <div class="peak-time" id="peakHour">--:00</div>
-                  <div style="color:var(--text-light);" id="peakHourConcurrency">0 concurrent users</div>
-                </div>
-              </div>
-
-              <!-- Concurrency Chart -->
-              <div class="card">
-                <h2>📊 Concurrency Over Time</h2>
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-                  <span id="granularityLabel" style="font-weight:600;color:var(--primary-color);background:var(--pill);padding:8px 16px;border-radius:20px;">1-hour intervals</span>
-                  <span style="background:rgba(220,53,69,0.1);padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;">Alert threshold: <span id="thresholdValue" style="color:var(--danger);">20</span> users</span>
-                </div>
-                <div class="chart-container">
-                  <canvas id="concurrencyChart"></canvas>
-                </div>
-              </div>
-
-              <!-- Peak Intervals Table -->
-              <div class="card">
-                <h2>⚠️ Peak Intervals (Exceeding Threshold)</h2>
-                <div class="table-container">
-                  <table id="peakTable">
-                    <thead>
-                      <tr>
-                        <th>Date & Time (UTC)</th>
-                        <th>Concurrent Users</th>
-                        <th>% of Peak</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody id="peakTableBody">
-                      <tr>
-                        <td colspan="4" style="text-align:center;padding:48px;color:var(--text-light);">
-                          No data yet. Fetch users and run concurrency analysis.
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <!-- All Intervals Data -->
-              <div class="card">
-                <h2>📋 All Intervals</h2>
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-                  <input type="text" id="searchInterval" placeholder="🔍 Search date/time..." style="max-width:300px;padding:12px;">
-                  <span style="font-size:13px;color:var(--text-light);background:var(--pill);padding:8px 16px;border-radius:20px;">
-                    Showing <span id="visibleIntervals">0</span>/<span id="totalIntervals">0</span> intervals
-                  </span>
-                </div>
-                <div class="table-container" style="max-height:400px;">
-                  <table id="intervalsTable">
-                    <thead>
-                      <tr>
-                        <th>Interval Start (UTC)</th>
-                        <th>Concurrent Users</th>
-                        <th>Change</th>
-                      </tr>
-                    </thead>
-                    <tbody id="intervalsTableBody">
-                      <tr>
-                        <td colspan="3" style="text-align:center;padding:48px;color:var(--text-light);">
-                          No data available.
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+                <ul style="list-style-type:none;padding-left:0;">
+                  <li style="margin-bottom:8px;">✓ Fetches all active users</li>
+                  <li style="margin-bottom:8px;">✓ Queries presence history via User Details API</li>
+                  <li style="margin-bottom:8px;">✓ Splits long date ranges into 7-day windows</li>
+                  <li style="margin-bottom:8px;">✓ Calculates concurrent logged-in users</li>
+                  <li style="margin-bottom:8px;">✓ Identifies peak usage times automatically</li>
+                  <li>✓ No interacting hours - pure concurrency analysis</li>
+                </ul>
               </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      <!-- Settings Tab -->
-      <div id="Settings" class="tabcontent" style="display:none;">
-        <div class="container" style="max-width:800px;margin:0 auto;padding:40px 20px;">
-          <div class="card">
-            <h2>⚙️ Application Settings</h2>
-            <div class="info-box" style="margin-bottom:24px;">
-              <strong style="color:var(--primary-color);">🔐 Authentication Status:</strong><br>
-              <div style="display:flex;align-items:center;gap:10px;margin-top:12px;">
-                <span class="status-indicator" id="settingsStatusIndicator" style="width:14px;height:14px;background:var(--danger);"></span>
-                <span id="settingsStatusText">Not Connected</span>
+          <!-- Right Column - Results -->
+          <div class="right-column">
+            <!-- Key Stats -->
+            <div class="stats-grid">
+              <div class="stat-card">
+                <div class="stat-label">Total Users</div>
+                <div class="stat-value" id="statTotalUsers">0</div>
+                <div style="font-size:12px;color:var(--text-light);">Active licensed users</div>
+              </div>
+              <div class="stat-card peak-stat">
+                <div class="stat-label">Peak Concurrency</div>
+                <div class="stat-value" id="statPeakConcurrency">0</div>
+                <div style="font-size:12px;color:var(--text-light);">Max concurrent logged-in</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Avg Concurrency</div>
+                <div class="stat-value" id="statAvgConcurrency">0</div>
+                <div style="font-size:12px;color:var(--text-light);">Period average</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Total Intervals</div>
+                <div class="stat-value" id="statTotalIntervals">0</div>
+                <div style="font-size:12px;color:var(--text-light);">Time slices analysed</div>
               </div>
             </div>
-            <div class="info-box">
-              <strong style="color:var(--primary-color);">📍 Environment:</strong> EU West (Dublin) - mypurecloud.ie<br>
-              <strong style="color:var(--primary-color);">📋 Client ID:</strong> fe305808-b368-4547-8af9-325d28d552bb<br>
-              <strong style="color:var(--primary-color);">📋 Redirect URI:</strong> https://gmcglynn88.github.io/ConcurrencyReporting/<br>
+
+            <!-- Peak Times Cards -->
+            <div class="peak-time-grid">
+              <div class="peak-card">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span style="font-size:24px;">🏆</span>
+                  <h3 style="margin:0;font-size:18px;color:var(--text-color);">Overall Peak</h3>
+                </div>
+                <div class="peak-time" id="peakTimeOverall">--:--</div>
+                <div style="color:var(--text-light);" id="peakConcurrencyOverall">0 concurrent users</div>
+              </div>
+              <div class="peak-card">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span style="font-size:24px;">📅</span>
+                  <h3 style="margin:0;font-size:18px;color:var(--text-color);">Peak Day</h3>
+                </div>
+                <div class="peak-time" id="peakDay">--/--/----</div>
+                <div style="color:var(--text-light);" id="peakDayConcurrency">0 concurrent users</div>
+              </div>
+              <div class="peak-card">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span style="font-size:24px;">⏰</span>
+                  <h3 style="margin:0;font-size:18px;color:var(--text-color);">Busiest Hour</h3>
+                </div>
+                <div class="peak-time" id="peakHour">--:00</div>
+                <div style="color:var(--text-light);" id="peakHourConcurrency">0 concurrent users</div>
+              </div>
+            </div>
+
+            <!-- Concurrency Chart -->
+            <div class="card">
+              <h2>📊 Concurrency Over Time</h2>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                <span id="granularityLabel" style="font-weight:600;color:var(--primary-color);background:var(--pill);padding:8px 16px;border-radius:20px;">1-hour intervals</span>
+                <span style="background:rgba(220,53,69,0.1);padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;">Alert threshold: <span id="thresholdValue" style="color:var(--danger);">20</span> users</span>
+              </div>
+              <div class="chart-container">
+                <canvas id="concurrencyChart"></canvas>
+              </div>
+            </div>
+
+            <!-- Peak Intervals Table -->
+            <div class="card">
+              <h2>⚠️ Peak Intervals (Exceeding Threshold)</h2>
+              <div class="table-container">
+                <table id="peakTable">
+                  <thead>
+                    <tr>
+                      <th>Date & Time (UTC)</th>
+                      <th>Concurrent Users</th>
+                      <th>% of Peak</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="peakTableBody">
+                    <tr>
+                      <td colspan="4" style="text-align:center;padding:48px;color:var(--text-light);">
+                        No data yet. Fetch users and run concurrency analysis.
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- All Intervals Data -->
+            <div class="card">
+              <h2>📋 All Intervals</h2>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                <input type="text" id="searchInterval" placeholder="🔍 Search date/time..." style="max-width:300px;padding:12px;">
+                <span style="font-size:13px;color:var(--text-light);background:var(--pill);padding:8px 16px;border-radius:20px;">
+                  Showing <span id="visibleIntervals">0</span>/<span id="totalIntervals">0</span> intervals
+                </span>
+              </div>
+              <div class="table-container" style="max-height:400px;">
+                <table id="intervalsTable">
+                  <thead>
+                    <tr>
+                      <th>Interval Start (UTC)</th>
+                      <th>Concurrent Users</th>
+                      <th>Change</th>
+                    </tr>
+                  </thead>
+                  <tbody id="intervalsTableBody">
+                    <tr>
+                      <td colspan="3" style="text-align:center;padding:48px;color:var(--text-light);">
+                        No data available.
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
@@ -514,15 +478,8 @@
     // ==================== DOM ELEMENTS ====================
     const el = {
       mainContent: document.getElementById('app-content'),
-      btnDisconnect: document.getElementById('btnDisconnect'),
-      btnFetchUsers: document.getElementById('btnFetchUsers'),
-      btnFetchConcurrency: document.getElementById('btnFetchConcurrency'),
-      btnExport: document.getElementById('btnExport'),
-      btnReset: document.getElementById('btnReset'),
       statusIndicator: document.getElementById('statusIndicator'),
       statusText: document.getElementById('statusText'),
-      settingsStatusIndicator: document.getElementById('settingsStatusIndicator'),
-      settingsStatusText: document.getElementById('settingsStatusText'),
       dateFrom: document.getElementById('dateFrom'),
       dateTo: document.getElementById('dateTo'),
       dateRangeInfo: document.getElementById('dateRangeInfo'),
@@ -542,6 +499,10 @@
       thresholdValue: document.getElementById('thresholdValue'),
       peakTableBody: document.getElementById('peakTableBody'),
       intervalsTableBody: document.getElementById('intervalsTableBody'),
+      btnFetchUsers: document.getElementById('btnFetchUsers'),
+      btnFetchConcurrency: document.getElementById('btnFetchConcurrency'),
+      btnExport: document.getElementById('btnExport'),
+      btnReset: document.getElementById('btnReset'),
       searchInterval: document.getElementById('searchInterval'),
       visibleIntervals: document.getElementById('visibleIntervals'),
       totalIntervals: document.getElementById('totalIntervals'),
@@ -692,13 +653,6 @@
       if (el.statusText) {
         el.statusText.textContent = connected ? 'Connected to Dublin' : 'Not Connected';
         el.statusText.style.color = connected ? 'var(--success)' : 'var(--danger)';
-      }
-      if (el.settingsStatusIndicator) {
-        el.settingsStatusIndicator.style.background = connected ? 'var(--success)' : 'var(--danger)';
-      }
-      if (el.settingsStatusText) {
-        el.settingsStatusText.textContent = connected ? 'Connected to Dublin' : 'Not Connected';
-        el.settingsStatusText.style.color = connected ? 'var(--success)' : 'var(--danger)';
       }
       if (el.btnFetchUsers) {
         el.btnFetchUsers.disabled = !connected;
@@ -859,7 +813,7 @@
       return intervals;
     }
 
-    // ==================== FETCH CONCURRENCY - FIXED WITH 7-DAY WINDOW SPLITTING ====================
+    // ==================== FETCH CONCURRENCY ====================
     async function fetchConcurrency() {
       if (!appState.users.length) {
         showStatusMessage('Please fetch users first', 'error');
@@ -881,7 +835,7 @@
         const userIds = appState.users.map(u => u.id);
         const batchSize = 25;
         
-        // --- STEP 1: Split the overall range into 7-day chunks ---
+        // Split the overall range into 7-day chunks
         const startDate = new Date(`${dateFrom}T00:00:00.000Z`);
         const endDate = new Date(`${dateTo}T23:59:59.999Z`);
         const intervals7Day = [];
@@ -889,19 +843,17 @@
         let currentStart = new Date(startDate);
         while (currentStart < endDate) {
           let currentEnd = new Date(currentStart);
-          currentEnd.setDate(currentEnd.getDate() + 6); // Add 6 days = 7 day window
+          currentEnd.setDate(currentEnd.getDate() + 6);
           if (currentEnd > endDate) currentEnd = new Date(endDate);
           
-          // Format: YYYY-MM-DDTHH:MM:SS.FFFZ/YYYY-MM-DDTHH:MM:SS.FFFZ
           const intervalStr = `${currentStart.toISOString().split('.')[0]}Z/${currentEnd.toISOString().split('.')[0]}Z`;
           intervals7Day.push(intervalStr);
           
-          // Move to next window
           currentStart = new Date(currentEnd);
           currentStart.setDate(currentStart.getDate() + 1);
         }
 
-        // Generate our target granular intervals ONCE for the whole period
+        // Generate target granular intervals for the whole period
         const allGranularIntervals = generateIntervals(dateFrom, dateTo, granularity);
         const concurrencyMap = new Map();
         allGranularIntervals.forEach(interval => {
@@ -911,12 +863,12 @@
         updateLoadingProgress(10);
         showStatusMessage(`📅 Split into ${intervals7Day.length} x 7-day windows`, 'info');
 
-        // --- STEP 2: Process each 7-day window ---
+        // Process each 7-day window
         for (let w = 0; w < intervals7Day.length; w++) {
           const windowInterval = intervals7Day[w];
           el.loadingSubtext.innerHTML = `Processing window ${w+1}/${intervals7Day.length}: ${windowInterval}`;
           
-          // Process users in batches for THIS window
+          // Process users in batches
           for (let i = 0; i < userIds.length; i += batchSize) {
             const batch = userIds.slice(i, i + batchSize);
             const overallProgress = 10 + ((w / intervals7Day.length) * 80) + ((i / userIds.length) * (80 / intervals7Day.length));
@@ -949,14 +901,13 @@
                   const userId = userDetail.userId;
                   if (userDetail.primaryPresence) {
                     userDetail.primaryPresence.forEach(presenceEvent => {
-                      // User is considered logged-in if they have ANY presence state other than 'Offline'
-                      // 'AVAILABLE', 'ON_QUEUE', 'BUSY', 'IDLE' all mean they are logged in
+                      // User is considered logged-in if they have any presence state other than 'Offline'
                       if (presenceEvent.systemPresence !== 'Offline' && presenceEvent.systemPresence !== null) {
                         const presenceStart = presenceEvent.startTime;
                         const presenceEnd = presenceEvent.endTime || windowInterval.split('/')[1];
                         const presenceInterval = `${presenceStart}/${presenceEnd}`;
                         
-                        // Map to our granular intervals
+                        // Map to granular intervals
                         allGranularIntervals.forEach(granularInterval => {
                           if (intervalsOverlap(presenceInterval, granularInterval)) {
                             const userSet = concurrencyMap.get(granularInterval);
@@ -973,14 +924,13 @@
               showStatusMessage(`⚠️ Window ${w+1} partial failure`, 'warn');
             }
 
-            // Rate limiting - 200ms between batches
             await new Promise(resolve => setTimeout(resolve, 200));
           }
         }
 
         updateLoadingProgress(95);
 
-        // --- STEP 3: Convert map to array and sort ---
+        // Convert map to array and sort
         const concurrencyData = [];
         let peakConcurrency = 0;
         let totalConcurrency = 0;
@@ -1031,22 +981,38 @@
       appState.stats.peakConcurrency = peak.concurrent;
       el.peakTimeOverall.textContent = formatHourFromInterval(peak.interval);
       el.peakConcurrencyOverall.textContent = `${peak.concurrent} concurrent users`;
+      
       const dayMap = new Map();
       appState.concurrencyData.forEach(item => {
         const day = formatDateFromInterval(item.interval);
-        if (!dayMap.has(day) || item.concurrent > dayMap.get(day)) { dayMap.set(day, item.concurrent); }
+        if (!dayMap.has(day) || item.concurrent > dayMap.get(day)) { 
+          dayMap.set(day, item.concurrent); 
+        }
       });
       let peakDay = null, peakDayValue = 0;
-      dayMap.forEach((value, day) => { if (value > peakDayValue) { peakDayValue = value; peakDay = day; } });
+      dayMap.forEach((value, day) => { 
+        if (value > peakDayValue) { 
+          peakDayValue = value; 
+          peakDay = day; 
+        } 
+      });
       el.peakDay.textContent = peakDay || '--/--/----';
       el.peakDayConcurrency.textContent = `${peakDayValue} concurrent users`;
+      
       const hourMap = new Map();
       appState.concurrencyData.forEach(item => {
         const hour = formatHourFromInterval(item.interval);
-        if (!hourMap.has(hour) || item.concurrent > hourMap.get(hour)) { hourMap.set(hour, item.concurrent); }
+        if (!hourMap.has(hour) || item.concurrent > hourMap.get(hour)) { 
+          hourMap.set(hour, item.concurrent); 
+        }
       });
       let peakHour = null, peakHourValue = 0;
-      hourMap.forEach((value, hour) => { if (value > peakHourValue) { peakHourValue = value; peakHour = hour; } });
+      hourMap.forEach((value, hour) => { 
+        if (value > peakHourValue) { 
+          peakHourValue = value; 
+          peakHour = hour; 
+        } 
+      });
       el.peakHour.textContent = peakHour || '--:--';
       el.peakHourConcurrency.textContent = `${peakHourValue} concurrent users`;
     }
@@ -1197,18 +1163,6 @@
       }
     }
 
-    // ==================== TABS ====================
-    function openTabById(tabId) {
-      const tabs = document.getElementsByClassName("tabcontent");
-      for (let i = 0; i < tabs.length; i++) { tabs[i].style.display = "none"; }
-      const el = document.getElementById(tabId);
-      if (el) { el.style.display = "flex"; }
-      const links = document.getElementsByClassName("tablinks");
-      for (let i = 0; i < links.length; i++) {
-        links[i].classList.toggle("active", links[i].getAttribute("data-tab") === tabId);
-      }
-    }
-
     // ==================== INITIALISATION ====================
     function initializeApp() {
       console.log("Initializing app...");
@@ -1216,23 +1170,6 @@
       if (el.dateFrom) el.dateFrom.value = last7Days.from;
       if (el.dateTo) el.dateTo.value = last7Days.to;
       updateDateRangeInfo();
-
-      document.addEventListener('click', (e) => {
-        const btn = e.target.closest('.tablinks');
-        if (!btn) return;
-        e.preventDefault();
-        const tabId = btn.getAttribute('data-tab');
-        openTabById(tabId);
-      });
-
-      if (el.btnDisconnect) {
-        el.btnDisconnect.addEventListener('click', function() {
-          clearCredentials();
-          updateConnectionStatus(false);
-          showStatusMessage('Disconnected', 'info');
-          window.location.href = authUrl();
-        });
-      }
 
       if (el.btnFetchUsers) { el.btnFetchUsers.addEventListener('click', fetchUsers); }
       if (el.btnFetchConcurrency) { el.btnFetchConcurrency.addEventListener('click', fetchConcurrency); }
@@ -1278,8 +1215,6 @@
           updateDateRangeInfo();
         });
       }
-
-      openTabById('Concurrency');
     }
 
     // ==================== START ====================
