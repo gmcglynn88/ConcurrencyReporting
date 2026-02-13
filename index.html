@@ -346,7 +346,9 @@
                   <strong>Endpoint:</strong> /api/v2/analytics/users/aggregates/query<br>
                   <strong>Metrics:</strong> tSystemPresence<br>
                   <strong>Granularity:</strong> PT15M<br>
-                  <strong>Group By:</strong> userId
+                  <strong>Group By:</strong> userId<br>
+                  <strong>Concurrent:</strong> Count of users with any non-Offline presence<br>
+                  <strong>Interaction Hours:</strong> Sum of Interacting + Communicating time
                 </div>
               </div>
 
@@ -355,9 +357,9 @@
                   <span style="background:var(--success);color:white;padding:2px 12px;border-radius:20px;font-size:12px;">✅ TWO VIEWS</span>
                 </div>
                 <ul style="list-style-type:none;padding-left:0;">
-                  <li style="margin-bottom:8px;">✅ View 1: Count of concurrent users per interval</li>
-                  <li style="margin-bottom:8px;">✅ View 2: Total interaction hours per interval</li>
-                  <li style="margin-bottom:8px;">✅ Both calculated correctly from aggregates data</li>
+                  <li style="margin-bottom:8px;">✅ View 1: Count of concurrent users per interval (any non-Offline)</li>
+                  <li style="margin-bottom:8px;">✅ View 2: Total interaction hours per interval (Interacting + Communicating only)</li>
+                  <li style="margin-bottom:8px;">✅ Both calculated from PT15M aggregates data</li>
                 </ul>
               </div>
               
@@ -396,7 +398,7 @@
               <div class="stat-card interact-stat">
                 <div class="stat-label">Total Interaction</div>
                 <div class="stat-value" id="statTotalInteractionHours">0</div>
-                <div style="font-size:12px;color:var(--text-light);">Hours (non-Offline)</div>
+                <div style="font-size:12px;color:var(--text-light);">Hours (Interacting+Communicating)</div>
               </div>
             </div>
 
@@ -902,7 +904,7 @@
       }
     }
 
-    // ==================== PROCESS AGGREGATES RESPONSE ====================
+    // ==================== PROCESS AGGREGATES RESPONSE (FIXED) ====================
     function processAggregatesResponse(response, intervalMap) {
       if (!response.results) return;
       
@@ -918,7 +920,7 @@
             intervalMap.set(intervalStr, {
               interval: intervalStr,
               users: new Set(),
-              totalNonOfflineTime: 0, // Sum of all non-offline time in this interval
+              totalInteractionTime: 0, // Only INTERACTING + COMMUNICATING time
               date: new Date(intervalStr.split('/')[0])
             });
           }
@@ -931,10 +933,14 @@
               const qualifier = metric.qualifier;
               const sum = metric.stats?.sum || 0;
               
+              // User is logged in if they have any non-Offline presence
               if (qualifier !== 'Offline') {
-                // User is logged in (non-Offline)
                 intervalData.users.add(userId);
-                intervalData.totalNonOfflineTime += sum;
+              }
+              
+              // Only count INTERACTING and COMMUNICATING time as interaction hours
+              if (qualifier === 'Interacting' || qualifier === 'Communicating') {
+                intervalData.totalInteractionTime += sum;
               }
             }
           });
@@ -1058,13 +1064,13 @@
         intervalMap.forEach((data, interval) => {
           const concurrent = data.users.size;
           maxConcurrency = Math.max(maxConcurrency, concurrent);
-          totalInteractionTimeMs += data.totalNonOfflineTime;
+          totalInteractionTimeMs += data.totalInteractionTime; // <-- FIX: use interaction time
           
           intervalData.push({
             interval: interval,
             concurrent: concurrent,
-            interactionTimeMs: data.totalNonOfflineTime,
-            interactionHours: data.totalNonOfflineTime / (60 * 60 * 1000),
+            interactionTimeMs: data.totalInteractionTime, // <-- FIX: store only interacting+communicating time
+            interactionHours: data.totalInteractionTime / (60 * 60 * 1000),
             date: data.date
           });
         });
