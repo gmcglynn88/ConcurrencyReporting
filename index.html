@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Genesys Cloud - Concurrency & Peak Usage Report</title>
+  <title>Genesys Cloud - Concurrency & Peak Time Report</title>
   <link href="https://fonts.googleapis.com/css2?family=Aptos:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -24,10 +24,6 @@
       --info:#17a2b8;
       --peak-color:#dc3545;
       --high-color:#ffc107;
-      --night-bg:#1a2b3c;
-      --night-text:#8ba3b8;
-      --day-bg:#f0f9ff;
-      --day-text:#2c3e50;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body{
@@ -152,8 +148,6 @@
     }
     td{padding:14px 16px;border-bottom:1px solid var(--border-color);font-size:14px;}
     tr:hover{background:var(--pill);}
-    .night-shift { background: var(--night-bg); color: var(--night-text); }
-    .day-shift { background: var(--day-bg); color: var(--day-text); }
     .peak-badge{
       display:inline-block; padding:6px 14px; border-radius:20px; font-size:13px; font-weight:600;
       background:rgba(220,53,69,0.15); color:var(--danger); border:1px solid rgba(220,53,69,0.3);
@@ -221,16 +215,6 @@
       margin-left: 12px;
       display: inline-block;
     }
-    .fix-badge {
-      background: var(--success);
-      color: white;
-      padding: 4px 12px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 600;
-      margin-left: 12px;
-      display: inline-block;
-    }
     .debug-info {
       font-size: 11px;
       color: var(--text-light);
@@ -242,34 +226,11 @@
       max-height: 200px;
       overflow-y: auto;
     }
-    .variance-badge {
-      display: inline-block;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 10px;
-      font-weight: 600;
-      margin-left: 5px;
-    }
-    .high-variance { background: rgba(40, 167, 69, 0.2); color: var(--success); }
-    .low-variance { background: rgba(220, 53, 69, 0.2); color: var(--danger); }
-    .hour-marker {
-      display: inline-block;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: var(--primary-color);
-      color: white;
-      font-size: 10px;
-      text-align: center;
-      line-height: 20px;
-      margin-right: 5px;
-    }
-    .hour-row {
-      border-left: 3px solid transparent;
-    }
-    .hour-row.hour-start {
-      border-left-color: var(--primary-color);
-      font-weight: bold;
+    .granularity-note {
+      font-size: 12px;
+      color: var(--text-light);
+      margin-top: 8px;
+      font-style: italic;
     }
   </style>
 </head>
@@ -323,6 +284,9 @@
                 <div class="granularity-option" data-granularity="PT60M">1h</div>
                 <div class="granularity-option" data-granularity="P1D">Daily</div>
               </div>
+              <div class="granularity-note">
+                ⓘ 15min data is counted directly. Higher granularities are aggregated from 15min data.
+              </div>
               
               <div style="margin-top:24px;">
                 <label for="thresholdConcurrency">Concurrency Alert Threshold</label>
@@ -366,12 +330,12 @@
 
               <div class="info-box" style="margin-top:24px;background:rgba(40,167,69,0.05);">
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-                  <span style="background:var(--success);color:white;padding:2px 12px;border-radius:20px;font-size:12px;">✅ FIXES APPLIED</span>
+                  <span style="background:var(--success);color:white;padding:2px 12px;border-radius:20px;font-size:12px;">✅ LOGIC FIXED</span>
                 </div>
                 <ul style="list-style-type:none;padding-left:0;">
-                  <li style="margin-bottom:8px;">✅ HOUR MARKERS: Shows start of each hour</li>
-                  <li style="margin-bottom:8px;">✅ CHANGE PATTERNS: Highlights when actual changes occur</li>
-                  <li style="margin-bottom:8px;">✅ DURATION ANALYSIS: Shows how long each concurrency level persists</li>
+                  <li style="margin-bottom:8px;">✅ Counts users with ANY presence in interval</li>
+                  <li style="margin-bottom:8px;">✅ Higher granularities aggregate from 15min data</li>
+                  <li style="margin-bottom:8px;">✅ Shows actual logged-in users per interval</li>
                 </ul>
               </div>
               
@@ -474,32 +438,25 @@
 
             <!-- All Intervals Data -->
             <div class="card">
-              <h2>📋 All Intervals - Hour Markers</h2>
+              <h2>📋 All Intervals</h2>
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
                 <input type="text" id="searchInterval" placeholder="🔍 Search date/time..." style="max-width:300px;padding:12px;">
-                <div>
-                  <span style="font-size:13px;color:var(--text-light);background:var(--pill);padding:8px 16px;border-radius:20px;margin-right:10px;">
-                    Showing <span id="visibleIntervals">0</span>/<span id="totalIntervals">0</span> intervals
-                  </span>
-                  <span style="font-size:13px;color:var(--text-light);background:var(--pill);padding:8px 16px;border-radius:20px;">
-                    Changes: <span id="totalChanges">0</span> (<span id="changePercent">0</span>%)
-                  </span>
-                </div>
+                <span style="font-size:13px;color:var(--text-light);background:var(--pill);padding:8px 16px;border-radius:20px;">
+                  Showing <span id="visibleIntervals">0</span>/<span id="totalIntervals">0</span> intervals
+                </span>
               </div>
-              <div class="table-container" style="max-height:500px;">
+              <div class="table-container" style="max-height:400px;">
                 <table id="intervalsTable">
                   <thead>
                     <tr>
-                      <th>Hour</th>
-                      <th>Interval (UTC)</th>
-                      <th>Concurrent</th>
+                      <th>Interval Start (UTC)</th>
+                      <th>Concurrent Users</th>
                       <th>Change</th>
-                      <th>Duration</th>
                     </tr>
                   </thead>
                   <tbody id="intervalsTableBody">
                     <tr>
-                      <td colspan="5" style="text-align:center;padding:48px;color:var(--text-light);">
+                      <td colspan="3" style="text-align:center;padding:48px;color:var(--text-light);">
                         No data available.
                       </td>
                     </tr>
@@ -538,13 +495,13 @@
     };
 
     const STORAGE_KEYS = {
-      ENVIRONMENT: 'gc_concurrency_london_env_v6',
-      TOKEN: 'gc_concurrency_london_token_v6',
-      TOKEN_EXPIRY: 'gc_concurrency_london_expiry_v6',
-      DATE_FROM: 'gc_concurrency_london_date_from_v6',
-      DATE_TO: 'gc_concurrency_london_date_to_v6',
-      GRANULARITY: 'gc_concurrency_london_granularity_v6',
-      THRESHOLD: 'gc_concurrency_london_threshold_v6'
+      ENVIRONMENT: 'gc_concurrency_london_env_v7',
+      TOKEN: 'gc_concurrency_london_token_v7',
+      TOKEN_EXPIRY: 'gc_concurrency_london_expiry_v7',
+      DATE_FROM: 'gc_concurrency_london_date_from_v7',
+      DATE_TO: 'gc_concurrency_london_date_to_v7',
+      GRANULARITY: 'gc_concurrency_london_granularity_v7',
+      THRESHOLD: 'gc_concurrency_london_threshold_v7'
     };
 
     // ==================== APP STATE ====================
@@ -554,15 +511,14 @@
       tokenExpiry: null,
       environment: ENVIRONMENTS['eu-west-2'],
       users: [],
-      concurrencyData: [],
+      concurrencyData: [], // Always stores 15-minute granularity data
+      aggregatedData: [], // Stores data at selected granularity
       stats: {
         totalUsers: 0,
         peakConcurrency: 0,
         avgConcurrency: 0,
         totalIntervals: 0,
-        peakInterval: null,
-        changeCount: 0,
-        changePercent: 0
+        peakInterval: null
       },
       currentGranularity: 'PT15M',
       threshold: 20,
@@ -601,8 +557,6 @@
       searchInterval: document.getElementById('searchInterval'),
       visibleIntervals: document.getElementById('visibleIntervals'),
       totalIntervals: document.getElementById('totalIntervals'),
-      totalChanges: document.getElementById('totalChanges'),
-      changePercent: document.getElementById('changePercent'),
       loadingOverlay: document.getElementById('loadingOverlay'),
       loadingText: document.getElementById('loadingText'),
       loadingSubtext: document.getElementById('loadingSubtext'),
@@ -686,6 +640,7 @@
         appState.isConnected = false;
         appState.users = [];
         appState.concurrencyData = [];
+        appState.aggregatedData = [];
       } catch (e) {
         console.error('Failed to clear credentials:', e);
       }
@@ -791,24 +746,6 @@
         }
       } catch (e) {
         return intervalStr;
-      }
-    }
-
-    function getHourFromInterval(intervalStr) {
-      try {
-        const start = new Date(intervalStr.split('/')[0]);
-        return start.getUTCHours();
-      } catch (e) {
-        return 0;
-      }
-    }
-
-    function getMinuteFromInterval(intervalStr) {
-      try {
-        const start = new Date(intervalStr.split('/')[0]);
-        return start.getUTCMinutes();
-      } catch (e) {
-        return 0;
       }
     }
 
@@ -918,48 +855,25 @@
       }
     }
 
-    // ==================== SESSION SPLITTING LOGIC ====================
-    function splitPresenceIntoIntervals(presenceStart, presenceEnd, intervalDurationMs) {
-      const intervals = [];
-      let currentStart = new Date(presenceStart);
-      
-      while (currentStart < presenceEnd) {
-        const currentEnd = new Date(Math.min(currentStart.getTime() + intervalDurationMs, presenceEnd.getTime()));
-        intervals.push({
-          start: new Date(currentStart),
-          end: new Date(currentEnd)
-        });
-        currentStart = new Date(currentEnd);
-      }
-      
-      return intervals;
+    // ==================== INTERVAL OVERLAP CHECK ====================
+    function isUserLoggedInDuringInterval(presenceStart, presenceEnd, intervalStart, intervalEnd) {
+      // User is considered logged in if their presence overlaps with ANY part of the interval
+      return presenceStart < intervalEnd && presenceEnd > intervalStart;
     }
 
-    function doesIntervalOverlap(interval1Start, interval1End, interval2Start, interval2End) {
-      return interval1Start < interval2End && interval1End > interval2Start;
-    }
-
-    // ==================== GENERATE INTERVALS ====================
-    function generateIntervals(dateFrom, dateTo, granularity) {
+    // ==================== GENERATE 15-MINUTE INTERVALS ====================
+    function generate15MinIntervals(dateFrom, dateTo) {
       const intervals = [];
       const start = new Date(`${dateFrom}T00:00:00.000Z`);
       const end = new Date(`${dateTo}T23:59:59.999Z`);
       let current = new Date(start);
-      let incrementMs;
-      
-      switch(granularity) {
-        case 'PT15M': incrementMs = 15 * 60 * 1000; break;
-        case 'PT30M': incrementMs = 30 * 60 * 1000; break;
-        case 'PT60M': incrementMs = 60 * 60 * 1000; break;
-        case 'P1D': incrementMs = 24 * 60 * 60 * 1000; break;
-        default: incrementMs = 15 * 60 * 1000;
-      }
+      const intervalMs = 15 * 60 * 1000; // 15 minutes
       
       let intervalCount = 0;
       const maxIntervals = 10000;
       
       while (current < end && intervalCount < maxIntervals) {
-        const intervalEnd = new Date(Math.min(current.getTime() + incrementMs, end.getTime()));
+        const intervalEnd = new Date(Math.min(current.getTime() + intervalMs, end.getTime()));
         intervals.push({
           interval: `${current.toISOString()}/${intervalEnd.toISOString()}`,
           start: new Date(current),
@@ -972,14 +886,52 @@
       return intervals;
     }
 
-    // ==================== FETCH CONCURRENCY WITH HOUR TRACKING ====================
+    // ==================== AGGREGATE TO HIGHER GRANULARITY ====================
+    function aggregateToGranularity(fifteenMinData, targetGranularity) {
+      if (targetGranularity === 'PT15M') {
+        return fifteenMinData; // No aggregation needed
+      }
+      
+      const aggregated = [];
+      let incrementMinutes;
+      
+      switch(targetGranularity) {
+        case 'PT30M': incrementMinutes = 30; break;
+        case 'PT60M': incrementMinutes = 60; break;
+        case 'P1D': incrementMinutes = 24 * 60; break;
+        default: return fifteenMinData;
+      }
+      
+      const intervalsPerAggregate = incrementMinutes / 15;
+      
+      for (let i = 0; i < fifteenMinData.length; i += intervalsPerAggregate) {
+        const chunk = fifteenMinData.slice(i, i + intervalsPerAggregate);
+        if (chunk.length === 0) continue;
+        
+        // For concurrency, we want to show the MAXIMUM concurrency during that period
+        // This shows the peak load during the aggregated interval
+        const maxConcurrent = Math.max(...chunk.map(d => d.concurrent));
+        
+        aggregated.push({
+          interval: chunk[0].interval, // Use first interval's start time
+          intervalEnd: chunk[chunk.length - 1].interval,
+          concurrent: maxConcurrent,
+          date: new Date(chunk[0].interval.split('/')[0]),
+          fifteenMinData: chunk // Keep reference for debugging
+        });
+      }
+      
+      return aggregated;
+    }
+
+    // ==================== FETCH CONCURRENCY - FIXED LOGIC ====================
     async function fetchConcurrency() {
       if (!appState.users.length) {
         showStatusMessage('Please fetch users first', 'error');
         return;
       }
 
-      setLoading(true, 'Analysing Concurrency', 'Tracking concurrency by hour...');
+      setLoading(true, 'Analysing Concurrency', 'Counting logged-in users per 15-min interval...');
       updateLoadingProgress(5);
 
       try {
@@ -990,19 +942,15 @@
           throw new Error('Please select a date range');
         }
 
-        const granularity = appState.currentGranularity;
         const userIds = appState.users.map(u => u.id);
         const batchSize = 25;
         
-        // Generate target intervals
-        const intervals = generateIntervals(dateFrom, dateTo, granularity);
+        // Generate 15-minute intervals for the entire period
+        const fifteenMinIntervals = generate15MinIntervals(dateFrom, dateTo);
         
-        // Initialize concurrency map with Sets and also track when each user was first seen
+        // Initialize concurrency map with Sets for each 15-min interval
         const concurrencyMap = new Map();
-        const userFirstSeen = new Map(); // Track when each user first appeared
-        const userLastSeen = new Map();  // Track when each user last appeared
-        
-        intervals.forEach(intervalObj => {
+        fifteenMinIntervals.forEach(intervalObj => {
           concurrencyMap.set(intervalObj.interval, new Set());
         });
 
@@ -1011,19 +959,11 @@
         // Get overall query boundaries
         const queryStartDate = new Date(`${dateFrom}T00:00:00.000Z`);
         const queryEndDate = new Date(`${dateTo}T23:59:59.999Z`);
-        
-        // Get interval duration in ms for splitting
-        const intervalDurationMs = intervals.length > 0 ? 
-          intervals[0].end - intervals[0].start : 15 * 60 * 1000;
 
         // Process users in batches
         const totalBatches = Math.ceil(userIds.length / batchSize);
         let processedBatches = 0;
         let totalPresenceEvents = 0;
-        let totalSplitIntervals = 0;
-        
-        // Track concurrency by hour for analysis
-        const hourlyStats = new Array(24).fill(0).map(() => ({ total: 0, count: 0, min: Infinity, max: 0 }));
         
         for (let i = 0; i < userIds.length; i += batchSize) {
           const batch = userIds.slice(i, i + batchSize);
@@ -1033,7 +973,7 @@
           
           el.loadingSubtext.innerHTML = `Processing batch ${processedBatches}/${totalBatches} (${batch.length} users)...`;
 
-          // Create a query for this batch
+          // Query for this batch
           const queryBody = {
             interval: `${queryStartDate.toISOString()}/${queryEndDate.toISOString()}`,
             userFilters: [{
@@ -1062,7 +1002,7 @@
                 
                 if (userDetail.primaryPresence) {
                   userDetail.primaryPresence.forEach(presenceEvent => {
-                    // Count if presence is NOT Offline
+                    // Count user if they have ANY non-Offline presence during the interval
                     if (presenceEvent.systemPresence && presenceEvent.systemPresence !== 'Offline') {
                       totalPresenceEvents++;
                       
@@ -1084,36 +1024,17 @@
                         return;
                       }
                       
-                      // Track first and last seen for this user
-                      if (!userFirstSeen.has(userId) || presenceStart < userFirstSeen.get(userId)) {
-                        userFirstSeen.set(userId, presenceStart);
-                      }
-                      if (!userLastSeen.has(userId) || presenceEnd > userLastSeen.get(userId)) {
-                        userLastSeen.set(userId, presenceEnd);
-                      }
-                      
-                      // Split long presence into intervals matching our granularity
-                      const presenceIntervals = splitPresenceIntoIntervals(
-                        presenceStart, 
-                        presenceEnd, 
-                        intervalDurationMs
-                      );
-                      
-                      totalSplitIntervals += presenceIntervals.length;
-                      
-                      // For each split interval, find which of our target intervals it overlaps with
-                      presenceIntervals.forEach(splitInterval => {
-                        intervals.forEach(targetInterval => {
-                          if (doesIntervalOverlap(
-                            splitInterval.start, splitInterval.end,
-                            targetInterval.start, targetInterval.end
-                          )) {
-                            const userSet = concurrencyMap.get(targetInterval.interval);
-                            if (userSet) {
-                              userSet.add(userId);
-                            }
+                      // Check each 15-min interval to see if this user was logged in
+                      fifteenMinIntervals.forEach(intervalObj => {
+                        if (isUserLoggedInDuringInterval(
+                          presenceStart, presenceEnd,
+                          intervalObj.start, intervalObj.end
+                        )) {
+                          const userSet = concurrencyMap.get(intervalObj.interval);
+                          if (userSet) {
+                            userSet.add(userId);
                           }
-                        });
+                        }
                       });
                     }
                   });
@@ -1131,124 +1052,75 @@
 
         updateLoadingProgress(95);
 
-        // Convert map to array and calculate stats
-        const concurrencyData = [];
-        let peakConcurrency = 0;
-        let totalConcurrency = 0;
+        // Convert map to array for 15-minute data
+        const fifteenMinData = [];
+        let peakFifteenMin = 0;
+        let totalFifteenMin = 0;
         
         concurrencyMap.forEach((userSet, interval) => {
           const concurrent = userSet.size;
-          const hour = getHourFromInterval(interval);
           
-          // Update hourly stats
-          hourlyStats[hour].total += concurrent;
-          hourlyStats[hour].count++;
-          hourlyStats[hour].min = Math.min(hourlyStats[hour].min, concurrent);
-          hourlyStats[hour].max = Math.max(hourlyStats[hour].max, concurrent);
-          
-          concurrencyData.push({
+          fifteenMinData.push({
             interval: interval,
             concurrent: concurrent,
-            date: new Date(interval.split('/')[0]),
-            hour: hour
+            date: new Date(interval.split('/')[0])
           });
           
-          totalConcurrency += concurrent;
-          if (concurrent > peakConcurrency) peakConcurrency = concurrent;
+          totalFifteenMin += concurrent;
+          if (concurrent > peakFifteenMin) peakFifteenMin = concurrent;
         });
 
         // Sort by date
-        concurrencyData.sort((a, b) => a.date - b.date);
+        fifteenMinData.sort((a, b) => a.date - b.date);
         
-        // Calculate change metrics
+        // Store the 15-minute base data
+        appState.concurrencyData = fifteenMinData;
+        
+        // Aggregate to selected granularity
+        appState.aggregatedData = aggregateToGranularity(fifteenMinData, appState.currentGranularity);
+        
+        // Update stats based on aggregated data
+        const displayData = appState.aggregatedData;
+        let peakConcurrency = 0;
+        let totalConcurrency = 0;
+        
+        displayData.forEach(item => {
+          totalConcurrency += item.concurrent;
+          if (item.concurrent > peakConcurrency) peakConcurrency = item.concurrent;
+        });
+        
+        appState.stats.peakConcurrency = peakConcurrency;
+        appState.stats.avgConcurrency = displayData.length > 0 ? Math.round(totalConcurrency / displayData.length) : 0;
+        appState.stats.totalIntervals = displayData.length;
+        
+        // Calculate stats for debug
+        const nonZeroIntervals = displayData.filter(d => d.concurrent > 0).length;
+        
+        // Calculate changes between intervals
         let changes = 0;
-        let changeLocations = [];
-        for (let i = 1; i < concurrencyData.length; i++) {
-          if (concurrencyData[i].concurrent !== concurrencyData[i-1].concurrent) {
+        for (let i = 1; i < displayData.length; i++) {
+          if (displayData[i].concurrent !== displayData[i-1].concurrent) {
             changes++;
-            changeLocations.push({
-              index: i,
-              from: concurrencyData[i-1].concurrent,
-              to: concurrencyData[i].concurrent,
-              time: concurrencyData[i].interval
-            });
           }
         }
-        
-        const variancePercentage = (changes / (concurrencyData.length - 1)) * 100;
-        
-        // Calculate duration of consistent periods
-        let currentValue = concurrencyData[0]?.concurrent;
-        let currentDuration = 1;
-        const durations = [];
-        
-        for (let i = 1; i < concurrencyData.length; i++) {
-          if (concurrencyData[i].concurrent === currentValue) {
-            currentDuration++;
-          } else {
-            durations.push({
-              value: currentValue,
-              duration: currentDuration * 15, // minutes
-              start: concurrencyData[i - currentDuration].interval,
-              end: concurrencyData[i - 1].interval
-            });
-            currentValue = concurrencyData[i].concurrent;
-            currentDuration = 1;
-          }
-        }
-        // Add the last period
-        if (currentDuration > 0) {
-          durations.push({
-            value: currentValue,
-            duration: currentDuration * 15,
-            start: concurrencyData[concurrencyData.length - currentDuration].interval,
-            end: concurrencyData[concurrencyData.length - 1].interval
-          });
-        }
-        
-        // Calculate average duration of consistent periods
-        const avgDuration = durations.reduce((sum, d) => sum + d.duration, 0) / durations.length;
-        
-        // Calculate stats
-        const nonZeroIntervals = concurrencyData.filter(d => d.concurrent > 0).length;
-        const zeroIntervals = concurrencyData.length - nonZeroIntervals;
-        
-        // Calculate average by hour
-        const hourlyAverages = hourlyStats.map((h, idx) => ({
-          hour: idx,
-          avg: h.count > 0 ? Math.round(h.total / h.count) : 0,
-          min: h.min === Infinity ? 0 : h.min,
-          max: h.max
-        }));
+        const variancePercentage = displayData.length > 1 ? (changes / (displayData.length - 1)) * 100 : 0;
         
         // Update debug info
         if (el.debugInfo) {
           el.debugInfo.innerHTML = `
-            <strong>Debug Info:</strong><br>
-            Total intervals: ${concurrencyData.length}<br>
-            Non-zero intervals: ${nonZeroIntervals}<br>
-            Zero intervals: ${zeroIntervals}<br>
-            Peak concurrency: ${peakConcurrency}<br>
-            Avg (all intervals): ${Math.round(totalConcurrency / concurrencyData.length)}<br>
-            Total presence events (API): ${totalPresenceEvents}<br>
-            Total split intervals: ${totalSplitIntervals}<br>
-            Changes between intervals: ${changes} (${variancePercentage.toFixed(1)}% vary)<br>
-            Avg consistent period: ${Math.round(avgDuration)} minutes<br>
-            <br><strong>Hourly Averages:</strong><br>
-            ${hourlyAverages.map(h => `${h.hour.toString().padStart(2,'0')}:00 - avg:${h.avg} (min:${h.min}, max:${h.max})`).join('<br>')}
+            <strong>15min Base Data:</strong><br>
+            15min intervals: ${fifteenMinData.length}<br>
+            15min peak: ${peakFifteenMin}<br>
+            <br><strong>${appState.currentGranularity} Aggregated:</strong><br>
+            Intervals: ${displayData.length}<br>
+            Peak: ${peakConcurrency}<br>
+            Avg: ${appState.stats.avgConcurrency}<br>
+            Non-zero: ${nonZeroIntervals}<br>
+            Changes: ${changes} (${variancePercentage.toFixed(1)}% vary)<br>
+            Total presence events: ${totalPresenceEvents}<br>
+            Sample data: ${displayData.slice(0, 3).map(d => d.concurrent).join(', ')}...
           `;
         }
-        
-        // Store stats
-        appState.stats.changeCount = changes;
-        appState.stats.changePercent = variancePercentage.toFixed(1);
-        appState.stats.hourlyAverages = hourlyAverages;
-        appState.stats.durations = durations;
-        
-        appState.concurrencyData = concurrencyData;
-        appState.stats.peakConcurrency = peakConcurrency;
-        appState.stats.avgConcurrency = concurrencyData.length > 0 ? Math.round(totalConcurrency / concurrencyData.length) : 0;
-        appState.stats.totalIntervals = concurrencyData.length;
         
         calculatePeakTimes();
         updateStatsUI();
@@ -1261,19 +1133,10 @@
         updateLoadingProgress(100);
         setTimeout(() => setLoading(false), 500);
         
-        const varianceMessage = variancePercentage > 20 ? 
-          `📊 Good variation: ${variancePercentage.toFixed(1)}% of intervals change` : 
-          variancePercentage > 10 ?
-          `⚠️ Moderate variation: ${variancePercentage.toFixed(1)}% of intervals change` :
-          `🔴 Low variation: ${variancePercentage.toFixed(1)}% of intervals change - data may be too flat`;
+        showStatusMessage(`✅ Analysis complete - Peak: ${peakConcurrency} concurrent users (aggregated from 15min data)`, 'success');
         
-        showStatusMessage(`✅ Analysis complete - Peak: ${peakConcurrency} concurrent users. ${varianceMessage}`, variancePercentage > 20 ? 'success' : variancePercentage > 10 ? 'warn' : 'error');
-        
-        // Log to console
-        console.log('Concurrency data sample:', concurrencyData.slice(0, 10));
-        console.log('Change locations:', changeLocations);
-        console.log('Hourly averages:', hourlyAverages);
-        console.log('Duration analysis:', durations.filter(d => d.duration > 60)); // periods longer than 1 hour
+        console.log('15min data sample:', fifteenMinData.slice(0, 10));
+        console.log('Aggregated data:', displayData.slice(0, 10));
         
       } catch (error) {
         setLoading(false);
@@ -1284,11 +1147,11 @@
 
     // ==================== CALCULATE PEAK TIMES ====================
     function calculatePeakTimes() {
-      if (appState.concurrencyData.length === 0) return;
+      const displayData = appState.aggregatedData;
+      if (displayData.length === 0) return;
       
-      const peak = appState.concurrencyData.reduce((max, curr) => curr.concurrent > max.concurrent ? curr : max);
+      const peak = displayData.reduce((max, curr) => curr.concurrent > max.concurrent ? curr : max);
       appState.stats.peakInterval = peak.interval;
-      appState.stats.peakConcurrency = peak.concurrent;
       
       const peakDate = new Date(peak.interval.split('/')[0]);
       el.peakTimeOverall.textContent = peakDate.toLocaleString('en-GB', { 
@@ -1300,7 +1163,7 @@
       el.peakConcurrencyOverall.textContent = `${peak.concurrent} concurrent users`;
       
       const dayMap = new Map();
-      appState.concurrencyData.forEach(item => {
+      displayData.forEach(item => {
         const day = formatDateFromInterval(item.interval);
         if (!dayMap.has(day) || item.concurrent > dayMap.get(day)) { 
           dayMap.set(day, item.concurrent); 
@@ -1320,7 +1183,7 @@
       
       if (appState.currentGranularity !== 'P1D') {
         const hourMap = new Map();
-        appState.concurrencyData.forEach(item => {
+        displayData.forEach(item => {
           const hour = formatHourFromInterval(item.interval);
           if (!hourMap.has(hour) || item.concurrent > hourMap.get(hour)) { 
             hourMap.set(hour, item.concurrent); 
@@ -1341,14 +1204,6 @@
         el.peakHour.textContent = '--:--';
         el.peakHourConcurrency.textContent = 'Not available for daily granularity';
       }
-      
-      // Update change stats in UI
-      if (el.totalChanges) {
-        el.totalChanges.textContent = appState.stats.changeCount || 0;
-      }
-      if (el.changePercent) {
-        el.changePercent.textContent = appState.stats.changePercent || '0';
-      }
     }
 
     // ==================== UI RENDERING ====================
@@ -1363,30 +1218,24 @@
       else if (appState.currentGranularity === 'PT30M') granularityText = '30-minute';
       else if (appState.currentGranularity === 'PT60M') granularityText = '1-hour';
       else if (appState.currentGranularity === 'P1D') granularityText = 'daily';
-      el.granularityLabel.textContent = `${granularityText} intervals`;
+      el.granularityLabel.textContent = `${granularityText} intervals (max per period)`;
     }
 
     function renderConcurrencyChart() {
       if (!el.concurrencyChart || !window.Chart) return;
       if (appState.chart) { appState.chart.destroy(); }
-      if (appState.concurrencyData.length === 0) return;
       
-      let displayData = appState.concurrencyData;
-      if (displayData.length > 200) { 
-        displayData = displayData.slice(-200); 
+      const displayData = appState.aggregatedData;
+      if (displayData.length === 0) return;
+      
+      let chartData = displayData;
+      if (chartData.length > 200) { 
+        chartData = chartData.slice(-200); 
       }
       
-      const labels = displayData.map(item => formatIntervalDate(item.interval, appState.currentGranularity));
-      const data = displayData.map(item => item.concurrent);
+      const labels = chartData.map(item => formatIntervalDate(item.interval, appState.currentGranularity));
+      const data = chartData.map(item => item.concurrent);
       const threshold = appState.threshold;
-      
-      // Find where changes occur for annotations
-      const changePoints = [];
-      for (let i = 1; i < displayData.length; i++) {
-        if (displayData[i].concurrent !== displayData[i-1].concurrent) {
-          changePoints.push(i);
-        }
-      }
       
       appState.chart = new Chart(el.concurrencyChart, {
         type: 'line',
@@ -1426,23 +1275,13 @@
               callbacks: {
                 afterBody: function(context) {
                   const idx = context[0].dataIndex;
-                  const item = displayData[idx];
+                  const item = chartData[idx];
                   if (item.concurrent > threshold) { 
                     return '⚠️ Exceeds threshold!'; 
                   }
                   return '';
                 }
               }
-            },
-            annotation: {
-              annotations: changePoints.map(idx => ({
-                type: 'line',
-                xMin: idx,
-                xMax: idx,
-                borderColor: 'rgba(255, 99, 132, 0.25)',
-                borderWidth: 1,
-                borderDash: [2, 2]
-              }))
             }
           },
           scales: { 
@@ -1458,8 +1297,9 @@
     function renderPeakTable() {
       const tbody = el.peakTableBody;
       tbody.innerHTML = '';
+      const displayData = appState.aggregatedData;
       const threshold = appState.threshold;
-      const peakData = appState.concurrencyData.filter(item => item.concurrent > threshold).sort((a, b) => b.concurrent - a.concurrent);
+      const peakData = displayData.filter(item => item.concurrent > threshold).sort((a, b) => b.concurrent - a.concurrent);
       
       if (peakData.length === 0) {
         tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:48px;color:var(--text-light);">No intervals exceed the threshold of ${threshold} concurrent users.</td></tr>`;
@@ -1494,12 +1334,13 @@
       const tbody = el.intervalsTableBody;
       tbody.innerHTML = '';
       
-      if (appState.concurrencyData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:48px;color:var(--text-light);">No data available. Run concurrency analysis first.</td></tr>`;
+      const displayData = appState.aggregatedData;
+      if (displayData.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;padding:48px;color:var(--text-light);">No data available. Run concurrency analysis first.</td></tr>`;
         return;
       }
       
-      let data = [...appState.concurrencyData];
+      let data = [...displayData];
       const searchTerm = el.searchInterval?.value?.toLowerCase() || '';
       
       if (searchTerm) {
@@ -1507,99 +1348,56 @@
       }
       
       el.visibleIntervals.textContent = data.length;
-      el.totalIntervals.textContent = appState.concurrencyData.length;
-      
-      // Calculate duration of current streak
-      let currentStreak = 1;
-      let streakValue = data[0]?.concurrent;
+      el.totalIntervals.textContent = displayData.length;
       
       data.forEach((item, idx) => {
-        const hour = getHourFromInterval(item.interval);
-        const minute = getMinuteFromInterval(item.interval);
-        const isHourStart = minute === 0;
-        
         const prev = idx > 0 ? data[idx - 1].concurrent : item.concurrent;
         const change = item.concurrent - prev;
         const changeIcon = change > 0 ? '▲' : change < 0 ? '▼' : '◆';
         const changeColor = change > 0 ? 'var(--danger)' : change < 0 ? 'var(--success)' : 'var(--text-light)';
         
-        // Update streak
-        if (idx > 0 && item.concurrent === data[idx-1].concurrent) {
-          currentStreak++;
-        } else {
-          currentStreak = 1;
-          streakValue = item.concurrent;
-        }
-        
-        const duration = currentStreak * 15; // minutes
-        
-        // Determine if this is a significant change
-        const isSignificantChange = Math.abs(change) >= 5;
-        const changeBadge = change !== 0 ? 
-          `<span class="variance-badge ${isSignificantChange ? 'high-variance' : 'low-variance'}">${change > 0 ? '+' : ''}${change}</span>` : 
-          '';
-        
         const row = document.createElement('tr');
-        row.className = isHourStart ? 'hour-start' : '';
-        
-        // Add hour marker
-        const hourMarker = isHourStart ? 
-          `<span class="hour-marker" title="${hour}:00">${hour}</span>` : 
-          '';
-        
-        row.innerHTML = `<td>${hourMarker}</td>
-                         <td>${formatIntervalDate(item.interval, appState.currentGranularity)}</td>
+        row.innerHTML = `<td>${formatIntervalDate(item.interval, appState.currentGranularity)}</td>
                          <td style="font-weight:600;color:${item.concurrent > appState.threshold ? 'var(--danger)' : 'inherit'};">${item.concurrent}</td>
-                         <td style="color:${changeColor};">${changeIcon} ${change !== 0 ? Math.abs(change) : '0'} ${changeBadge}</td>
-                         <td>${duration} min</td>`;
+                         <td style="color:${changeColor};">${changeIcon} ${change !== 0 ? Math.abs(change) : '0'}</td>`;
         tbody.appendChild(row);
       });
     }
 
     // ==================== EXPORT ====================
     function exportReport() {
-      if (!appState.concurrencyData.length) { 
+      const displayData = appState.aggregatedData;
+      if (!displayData.length) { 
         showStatusMessage('No data to export', 'error'); 
         return; 
       }
       
-      let csv = 'Genesys Cloud Concurrency Report - London Region (HOUR TRACKING)\n';
+      let csv = 'Genesys Cloud Concurrency Report - London Region\n';
       csv += `Generated: ${new Date().toLocaleString()}\n`;
       csv += `Environment: London (euw2.pure.cloud)\n`;
       csv += `Period: ${el.dateFrom.value} to ${el.dateTo.value}\n`;
-      csv += `Granularity: ${appState.currentGranularity}\n`;
+      csv += `Granularity: ${appState.currentGranularity} (aggregated from 15min data)\n`;
       csv += `Alert Threshold: ${appState.threshold} concurrent users\n`;
       csv += `Total Users Analysed: ${appState.stats.totalUsers}\n`;
       csv += `Peak Concurrency: ${appState.stats.peakConcurrency}\n`;
       csv += `Average Concurrency: ${appState.stats.avgConcurrency}\n`;
       csv += `Total Intervals: ${appState.stats.totalIntervals}\n`;
-      csv += `Changes Between Intervals: ${appState.stats.changeCount} (${appState.stats.changePercent}%)\n`;
-      csv += `FIXES APPLIED: Hour tracking, change analysis, duration tracking\n\n`;
-      
-      csv += 'HOURLY AVERAGES\n';
-      csv += 'Hour,Average Concurrency,Min,Max\n';
-      if (appState.stats.hourlyAverages) {
-        appState.stats.hourlyAverages.forEach(h => {
-          csv += `${h.hour.toString().padStart(2,'0')}:00,${h.avg},${h.min},${h.max}\n`;
-        });
-      }
-      
-      csv += '\nPEAK INTERVALS (Exceeding Threshold)\n';
+      csv += `\n`;
+      csv += 'PEAK INTERVALS (Exceeding Threshold)\n';
       csv += 'Interval,Concurrent Users,% of Peak,Status\n';
       
-      const peakData = appState.concurrencyData.filter(item => item.concurrent > appState.threshold).sort((a, b) => b.concurrent - a.concurrent);
+      const peakData = displayData.filter(item => item.concurrent > appState.threshold).sort((a, b) => b.concurrent - a.concurrent);
       peakData.forEach(item => {
         const percentage = Math.round((item.concurrent / appState.stats.peakConcurrency) * 100);
         csv += `${item.interval},${item.concurrent},${percentage}%,Above Threshold\n`;
       });
       
       csv += '\nALL INTERVALS\n';
-      csv += 'Interval,Concurrent Users,Change,Hour\n';
-      appState.concurrencyData.forEach((item, idx) => {
-        const prev = idx > 0 ? appState.concurrencyData[idx - 1].concurrent : item.concurrent;
+      csv += 'Interval,Concurrent Users,Change\n';
+      displayData.forEach((item, idx) => {
+        const prev = idx > 0 ? displayData[idx - 1].concurrent : item.concurrent;
         const change = item.concurrent - prev;
-        const hour = getHourFromInterval(item.interval);
-        csv += `${item.interval},${item.concurrent},${change > 0 ? '+' : ''}${change},${hour}:00\n`;
+        csv += `${item.interval},${item.concurrent},${change > 0 ? '+' : ''}${change}\n`;
       });
       
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1607,7 +1405,7 @@
       const a = document.createElement('a');
       const dateStr = new Date().toISOString().split('T')[0];
       a.href = url;
-      a.download = `genesys_concurrency_london_hour_report_${dateStr}.csv`;
+      a.download = `genesys_concurrency_london_report_${dateStr}.csv`;
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
       showStatusMessage('✅ Report exported successfully', 'success');
     }
@@ -1616,15 +1414,8 @@
       if (confirm('Reset the application? This will clear all data but keep the connection.')) {
         appState.users = []; 
         appState.concurrencyData = [];
-        appState.stats = { 
-          totalUsers: 0, 
-          peakConcurrency: 0, 
-          avgConcurrency: 0, 
-          totalIntervals: 0, 
-          peakInterval: null,
-          changeCount: 0,
-          changePercent: 0
-        };
+        appState.aggregatedData = [];
+        appState.stats = { totalUsers: 0, peakConcurrency: 0, avgConcurrency: 0, totalIntervals: 0, peakInterval: null };
         
         el.statTotalUsers.textContent = '0'; 
         el.statPeakConcurrency.textContent = '0'; 
@@ -1636,8 +1427,6 @@
         el.peakDayConcurrency.textContent = '0 concurrent users';
         el.peakHour.textContent = '--:--'; 
         el.peakHourConcurrency.textContent = '0 concurrent users';
-        el.totalChanges.textContent = '0';
-        el.changePercent.textContent = '0';
         
         el.btnFetchConcurrency.disabled = true; 
         el.btnExport.disabled = true;
@@ -1658,9 +1447,40 @@
       }
     }
 
+    // Handle granularity change
+    function onGranularityChange(granularity) {
+      appState.currentGranularity = granularity;
+      localStorage.setItem(STORAGE_KEYS.GRANULARITY, granularity);
+      
+      if (appState.concurrencyData.length > 0) {
+        // Re-aggregate from 15-minute data
+        appState.aggregatedData = aggregateToGranularity(appState.concurrencyData, granularity);
+        
+        // Recalculate stats
+        let peakConcurrency = 0;
+        let totalConcurrency = 0;
+        appState.aggregatedData.forEach(item => {
+          totalConcurrency += item.concurrent;
+          if (item.concurrent > peakConcurrency) peakConcurrency = item.concurrent;
+        });
+        
+        appState.stats.peakConcurrency = peakConcurrency;
+        appState.stats.avgConcurrency = appState.aggregatedData.length > 0 ? Math.round(totalConcurrency / appState.aggregatedData.length) : 0;
+        appState.stats.totalIntervals = appState.aggregatedData.length;
+        
+        calculatePeakTimes();
+        updateStatsUI();
+        renderConcurrencyChart();
+        renderPeakTable();
+        renderIntervalsTable();
+        
+        showStatusMessage(`Granularity changed to ${granularity} - aggregated from 15min data`, 'info');
+      }
+    }
+
     // ==================== INITIALISATION ====================
     function initializeApp() {
-      console.log("Initializing HOUR TRACKING London app...");
+      console.log("Initializing London app...");
       const last7Days = getLast7Days();
       if (el.dateFrom) el.dateFrom.value = last7Days.from;
       if (el.dateTo) el.dateTo.value = last7Days.to;
@@ -1677,12 +1497,7 @@
           opt.addEventListener('click', function() {
             el.granularityOptions.forEach(o => o.classList.remove('active'));
             this.classList.add('active');
-            appState.currentGranularity = this.dataset.granularity;
-            localStorage.setItem(STORAGE_KEYS.GRANULARITY, appState.currentGranularity);
-            updateStatsUI();
-            if (appState.concurrencyData.length > 0) {
-              showStatusMessage('Granularity changed - re-run analysis to apply', 'info');
-            }
+            onGranularityChange(this.dataset.granularity);
           });
         });
       }
@@ -1692,7 +1507,7 @@
           appState.threshold = parseInt(this.value) || 20;
           localStorage.setItem(STORAGE_KEYS.THRESHOLD, appState.threshold);
           if (el.thresholdValue) el.thresholdValue.textContent = appState.threshold;
-          if (appState.concurrencyData.length > 0) {
+          if (appState.aggregatedData.length > 0) {
             renderConcurrencyChart();
             renderPeakTable();
           }
@@ -1716,7 +1531,7 @@
 
     // ==================== START ====================
     window.onload = function() {
-      console.log("HOUR TRACKING London region page loaded, initializing...");
+      console.log("London region page loaded, initializing...");
       initAuth();
       initializeApp();
     };
