@@ -302,7 +302,7 @@
                   <span style="background:var(--primary-color);color:white;padding:2px 12px;border-radius:20px;font-size:12px;">OAuth Settings</span>
                 </div>
                 <div style="font-size:12px;">
-                  <strong>Client ID:</strong> a236ffec-2893-4ccd-81bb-ef2f4a2fe316<br>
+                  <strong>Client ID:</strong> d968eca4-cdb7-4b90-91b1-4628b5bb679e<br>
                   <strong>Redirect URI:</strong> <span id="currentRedirectUri"></span><br>
                   <strong>Environment:</strong> login.euw2.pure.cloud
                 </div>
@@ -461,9 +461,8 @@
 
   <script>
     // ==================== LONDON REGION CONFIGURATION ====================
-    const CLIENT_ID = 'a236ffec-2893-4ccd-81bb-ef2f4a2fe316';
-    // --- CHANGE MADE HERE: Hardcoded redirect URI as requested ---
-    const REDIRECT_URI = 'https://gmcglynn88.github.io/ConcurrencyReporting/';
+    const CLIENT_ID = 'd968eca4-cdb7-4b90-91b1-4628b5bb679e';
+    const REDIRECT_URI = window.location.href.split('#')[0];
     
     const ENVIRONMENTS = {
       'eu-west-2': { 
