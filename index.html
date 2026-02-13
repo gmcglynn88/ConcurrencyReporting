@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Genesys Cloud - Concurrency with Session Splitting</title>
+  <title>Genesys Cloud - Concurrency & Peak Usage Report</title>
   <link href="https://fonts.googleapis.com/css2?family=Aptos:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -24,6 +24,10 @@
       --info:#17a2b8;
       --peak-color:#dc3545;
       --high-color:#ffc107;
+      --night-bg:#1a2b3c;
+      --night-text:#8ba3b8;
+      --day-bg:#f0f9ff;
+      --day-text:#2c3e50;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body{
@@ -148,6 +152,8 @@
     }
     td{padding:14px 16px;border-bottom:1px solid var(--border-color);font-size:14px;}
     tr:hover{background:var(--pill);}
+    .night-shift { background: var(--night-bg); color: var(--night-text); }
+    .day-shift { background: var(--day-bg); color: var(--day-text); }
     .peak-badge{
       display:inline-block; padding:6px 14px; border-radius:20px; font-size:13px; font-weight:600;
       background:rgba(220,53,69,0.15); color:var(--danger); border:1px solid rgba(220,53,69,0.3);
@@ -246,6 +252,25 @@
     }
     .high-variance { background: rgba(40, 167, 69, 0.2); color: var(--success); }
     .low-variance { background: rgba(220, 53, 69, 0.2); color: var(--danger); }
+    .hour-marker {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--primary-color);
+      color: white;
+      font-size: 10px;
+      text-align: center;
+      line-height: 20px;
+      margin-right: 5px;
+    }
+    .hour-row {
+      border-left: 3px solid transparent;
+    }
+    .hour-row.hour-start {
+      border-left-color: var(--primary-color);
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -257,7 +282,6 @@
           <div class="brand-main">
             <h1>📊 Concurrency & Peak Time Report</h1>
             <span class="region-badge">🇬🇧 LONDON</span>
-            <span class="fix-badge">✅ SESSION SPLITTING</span>
           </div>
           <div class="subtitle">Genesys Cloud - London Region (apps.euw2.pure.cloud)</div>
         </div>
@@ -345,9 +369,9 @@
                   <span style="background:var(--success);color:white;padding:2px 12px;border-radius:20px;font-size:12px;">✅ FIXES APPLIED</span>
                 </div>
                 <ul style="list-style-type:none;padding-left:0;">
-                  <li style="margin-bottom:8px;">✅ SESSION SPLITTING: Long sessions split into 15-min chunks</li>
-                  <li style="margin-bottom:8px;">✅ VARIANCE DETECTION: Shows when concurrency actually changes</li>
-                  <li style="margin-bottom:8px;">✅ PRESENCE COUNT: Tracks each 15-min segment separately</li>
+                  <li style="margin-bottom:8px;">✅ HOUR MARKERS: Shows start of each hour</li>
+                  <li style="margin-bottom:8px;">✅ CHANGE PATTERNS: Highlights when actual changes occur</li>
+                  <li style="margin-bottom:8px;">✅ DURATION ANALYSIS: Shows how long each concurrency level persists</li>
                 </ul>
               </div>
               
@@ -450,26 +474,32 @@
 
             <!-- All Intervals Data -->
             <div class="card">
-              <h2>📋 All Intervals</h2>
+              <h2>📋 All Intervals - Hour Markers</h2>
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
                 <input type="text" id="searchInterval" placeholder="🔍 Search date/time..." style="max-width:300px;padding:12px;">
-                <span style="font-size:13px;color:var(--text-light);background:var(--pill);padding:8px 16px;border-radius:20px;">
-                  Showing <span id="visibleIntervals">0</span>/<span id="totalIntervals">0</span> intervals
-                </span>
+                <div>
+                  <span style="font-size:13px;color:var(--text-light);background:var(--pill);padding:8px 16px;border-radius:20px;margin-right:10px;">
+                    Showing <span id="visibleIntervals">0</span>/<span id="totalIntervals">0</span> intervals
+                  </span>
+                  <span style="font-size:13px;color:var(--text-light);background:var(--pill);padding:8px 16px;border-radius:20px;">
+                    Changes: <span id="totalChanges">0</span> (<span id="changePercent">0</span>%)
+                  </span>
+                </div>
               </div>
-              <div class="table-container" style="max-height:400px;">
+              <div class="table-container" style="max-height:500px;">
                 <table id="intervalsTable">
                   <thead>
                     <tr>
-                      <th>Interval Start (UTC)</th>
-                      <th>Concurrent Users</th>
+                      <th>Hour</th>
+                      <th>Interval (UTC)</th>
+                      <th>Concurrent</th>
                       <th>Change</th>
-                      <th>Variance</th>
+                      <th>Duration</th>
                     </tr>
                   </thead>
                   <tbody id="intervalsTableBody">
                     <tr>
-                      <td colspan="4" style="text-align:center;padding:48px;color:var(--text-light);">
+                      <td colspan="5" style="text-align:center;padding:48px;color:var(--text-light);">
                         No data available.
                       </td>
                     </tr>
@@ -508,13 +538,13 @@
     };
 
     const STORAGE_KEYS = {
-      ENVIRONMENT: 'gc_concurrency_london_env_v5',
-      TOKEN: 'gc_concurrency_london_token_v5',
-      TOKEN_EXPIRY: 'gc_concurrency_london_expiry_v5',
-      DATE_FROM: 'gc_concurrency_london_date_from_v5',
-      DATE_TO: 'gc_concurrency_london_date_to_v5',
-      GRANULARITY: 'gc_concurrency_london_granularity_v5',
-      THRESHOLD: 'gc_concurrency_london_threshold_v5'
+      ENVIRONMENT: 'gc_concurrency_london_env_v6',
+      TOKEN: 'gc_concurrency_london_token_v6',
+      TOKEN_EXPIRY: 'gc_concurrency_london_expiry_v6',
+      DATE_FROM: 'gc_concurrency_london_date_from_v6',
+      DATE_TO: 'gc_concurrency_london_date_to_v6',
+      GRANULARITY: 'gc_concurrency_london_granularity_v6',
+      THRESHOLD: 'gc_concurrency_london_threshold_v6'
     };
 
     // ==================== APP STATE ====================
@@ -530,7 +560,9 @@
         peakConcurrency: 0,
         avgConcurrency: 0,
         totalIntervals: 0,
-        peakInterval: null
+        peakInterval: null,
+        changeCount: 0,
+        changePercent: 0
       },
       currentGranularity: 'PT15M',
       threshold: 20,
@@ -569,6 +601,8 @@
       searchInterval: document.getElementById('searchInterval'),
       visibleIntervals: document.getElementById('visibleIntervals'),
       totalIntervals: document.getElementById('totalIntervals'),
+      totalChanges: document.getElementById('totalChanges'),
+      changePercent: document.getElementById('changePercent'),
       loadingOverlay: document.getElementById('loadingOverlay'),
       loadingText: document.getElementById('loadingText'),
       loadingSubtext: document.getElementById('loadingSubtext'),
@@ -760,6 +794,24 @@
       }
     }
 
+    function getHourFromInterval(intervalStr) {
+      try {
+        const start = new Date(intervalStr.split('/')[0]);
+        return start.getUTCHours();
+      } catch (e) {
+        return 0;
+      }
+    }
+
+    function getMinuteFromInterval(intervalStr) {
+      try {
+        const start = new Date(intervalStr.split('/')[0]);
+        return start.getUTCMinutes();
+      } catch (e) {
+        return 0;
+      }
+    }
+
     function formatHourFromInterval(intervalStr) {
       try {
         const start = new Date(intervalStr.split('/')[0]);
@@ -920,14 +972,14 @@
       return intervals;
     }
 
-    // ==================== FETCH CONCURRENCY WITH SESSION SPLITTING ====================
+    // ==================== FETCH CONCURRENCY WITH HOUR TRACKING ====================
     async function fetchConcurrency() {
       if (!appState.users.length) {
         showStatusMessage('Please fetch users first', 'error');
         return;
       }
 
-      setLoading(true, 'Analysing Concurrency', 'Splitting sessions into 15-minute intervals...');
+      setLoading(true, 'Analysing Concurrency', 'Tracking concurrency by hour...');
       updateLoadingProgress(5);
 
       try {
@@ -945,8 +997,11 @@
         // Generate target intervals
         const intervals = generateIntervals(dateFrom, dateTo, granularity);
         
-        // Initialize concurrency map
+        // Initialize concurrency map with Sets and also track when each user was first seen
         const concurrencyMap = new Map();
+        const userFirstSeen = new Map(); // Track when each user first appeared
+        const userLastSeen = new Map();  // Track when each user last appeared
+        
         intervals.forEach(intervalObj => {
           concurrencyMap.set(intervalObj.interval, new Set());
         });
@@ -966,6 +1021,9 @@
         let processedBatches = 0;
         let totalPresenceEvents = 0;
         let totalSplitIntervals = 0;
+        
+        // Track concurrency by hour for analysis
+        const hourlyStats = new Array(24).fill(0).map(() => ({ total: 0, count: 0, min: Infinity, max: 0 }));
         
         for (let i = 0; i < userIds.length; i += batchSize) {
           const batch = userIds.slice(i, i + batchSize);
@@ -1026,6 +1084,14 @@
                         return;
                       }
                       
+                      // Track first and last seen for this user
+                      if (!userFirstSeen.has(userId) || presenceStart < userFirstSeen.get(userId)) {
+                        userFirstSeen.set(userId, presenceStart);
+                      }
+                      if (!userLastSeen.has(userId) || presenceEnd > userLastSeen.get(userId)) {
+                        userLastSeen.set(userId, presenceEnd);
+                      }
+                      
                       // Split long presence into intervals matching our granularity
                       const presenceIntervals = splitPresenceIntoIntervals(
                         presenceStart, 
@@ -1072,11 +1138,19 @@
         
         concurrencyMap.forEach((userSet, interval) => {
           const concurrent = userSet.size;
+          const hour = getHourFromInterval(interval);
+          
+          // Update hourly stats
+          hourlyStats[hour].total += concurrent;
+          hourlyStats[hour].count++;
+          hourlyStats[hour].min = Math.min(hourlyStats[hour].min, concurrent);
+          hourlyStats[hour].max = Math.max(hourlyStats[hour].max, concurrent);
           
           concurrencyData.push({
             interval: interval,
             concurrent: concurrent,
-            date: new Date(interval.split('/')[0])
+            date: new Date(interval.split('/')[0]),
+            hour: hour
           });
           
           totalConcurrency += concurrent;
@@ -1086,19 +1160,66 @@
         // Sort by date
         concurrencyData.sort((a, b) => a.date - b.date);
         
-        // Calculate variance metrics
+        // Calculate change metrics
         let changes = 0;
+        let changeLocations = [];
         for (let i = 1; i < concurrencyData.length; i++) {
           if (concurrencyData[i].concurrent !== concurrencyData[i-1].concurrent) {
             changes++;
+            changeLocations.push({
+              index: i,
+              from: concurrencyData[i-1].concurrent,
+              to: concurrencyData[i].concurrent,
+              time: concurrencyData[i].interval
+            });
           }
         }
         
         const variancePercentage = (changes / (concurrencyData.length - 1)) * 100;
         
+        // Calculate duration of consistent periods
+        let currentValue = concurrencyData[0]?.concurrent;
+        let currentDuration = 1;
+        const durations = [];
+        
+        for (let i = 1; i < concurrencyData.length; i++) {
+          if (concurrencyData[i].concurrent === currentValue) {
+            currentDuration++;
+          } else {
+            durations.push({
+              value: currentValue,
+              duration: currentDuration * 15, // minutes
+              start: concurrencyData[i - currentDuration].interval,
+              end: concurrencyData[i - 1].interval
+            });
+            currentValue = concurrencyData[i].concurrent;
+            currentDuration = 1;
+          }
+        }
+        // Add the last period
+        if (currentDuration > 0) {
+          durations.push({
+            value: currentValue,
+            duration: currentDuration * 15,
+            start: concurrencyData[concurrencyData.length - currentDuration].interval,
+            end: concurrencyData[concurrencyData.length - 1].interval
+          });
+        }
+        
+        // Calculate average duration of consistent periods
+        const avgDuration = durations.reduce((sum, d) => sum + d.duration, 0) / durations.length;
+        
         // Calculate stats
         const nonZeroIntervals = concurrencyData.filter(d => d.concurrent > 0).length;
         const zeroIntervals = concurrencyData.length - nonZeroIntervals;
+        
+        // Calculate average by hour
+        const hourlyAverages = hourlyStats.map((h, idx) => ({
+          hour: idx,
+          avg: h.count > 0 ? Math.round(h.total / h.count) : 0,
+          min: h.min === Infinity ? 0 : h.min,
+          max: h.max
+        }));
         
         // Update debug info
         if (el.debugInfo) {
@@ -1112,10 +1233,17 @@
             Total presence events (API): ${totalPresenceEvents}<br>
             Total split intervals: ${totalSplitIntervals}<br>
             Changes between intervals: ${changes} (${variancePercentage.toFixed(1)}% vary)<br>
-            Sample data (first 5): ${concurrencyData.slice(0, 5).map(d => d.concurrent).join(', ')}<br>
-            Sample data (last 5): ${concurrencyData.slice(-5).map(d => d.concurrent).join(', ')}
+            Avg consistent period: ${Math.round(avgDuration)} minutes<br>
+            <br><strong>Hourly Averages:</strong><br>
+            ${hourlyAverages.map(h => `${h.hour.toString().padStart(2,'0')}:00 - avg:${h.avg} (min:${h.min}, max:${h.max})`).join('<br>')}
           `;
         }
+        
+        // Store stats
+        appState.stats.changeCount = changes;
+        appState.stats.changePercent = variancePercentage.toFixed(1);
+        appState.stats.hourlyAverages = hourlyAverages;
+        appState.stats.durations = durations;
         
         appState.concurrencyData = concurrencyData;
         appState.stats.peakConcurrency = peakConcurrency;
@@ -1133,15 +1261,19 @@
         updateLoadingProgress(100);
         setTimeout(() => setLoading(false), 500);
         
-        const varianceMessage = variancePercentage > 10 ? 
-          `📊 Data shows ${variancePercentage.toFixed(1)}% variation between intervals` : 
-          `⚠️ Low variation (${variancePercentage.toFixed(1)}%) - API may be aggregating data`;
+        const varianceMessage = variancePercentage > 20 ? 
+          `📊 Good variation: ${variancePercentage.toFixed(1)}% of intervals change` : 
+          variancePercentage > 10 ?
+          `⚠️ Moderate variation: ${variancePercentage.toFixed(1)}% of intervals change` :
+          `🔴 Low variation: ${variancePercentage.toFixed(1)}% of intervals change - data may be too flat`;
         
-        showStatusMessage(`✅ Analysis complete - Peak: ${peakConcurrency} concurrent users. ${varianceMessage}`, variancePercentage > 10 ? 'success' : 'warn');
+        showStatusMessage(`✅ Analysis complete - Peak: ${peakConcurrency} concurrent users. ${varianceMessage}`, variancePercentage > 20 ? 'success' : variancePercentage > 10 ? 'warn' : 'error');
         
         // Log to console
         console.log('Concurrency data sample:', concurrencyData.slice(0, 10));
-        console.log('Variance percentage:', variancePercentage.toFixed(1) + '%');
+        console.log('Change locations:', changeLocations);
+        console.log('Hourly averages:', hourlyAverages);
+        console.log('Duration analysis:', durations.filter(d => d.duration > 60)); // periods longer than 1 hour
         
       } catch (error) {
         setLoading(false);
@@ -1209,6 +1341,14 @@
         el.peakHour.textContent = '--:--';
         el.peakHourConcurrency.textContent = 'Not available for daily granularity';
       }
+      
+      // Update change stats in UI
+      if (el.totalChanges) {
+        el.totalChanges.textContent = appState.stats.changeCount || 0;
+      }
+      if (el.changePercent) {
+        el.changePercent.textContent = appState.stats.changePercent || '0';
+      }
     }
 
     // ==================== UI RENDERING ====================
@@ -1239,6 +1379,14 @@
       const labels = displayData.map(item => formatIntervalDate(item.interval, appState.currentGranularity));
       const data = displayData.map(item => item.concurrent);
       const threshold = appState.threshold;
+      
+      // Find where changes occur for annotations
+      const changePoints = [];
+      for (let i = 1; i < displayData.length; i++) {
+        if (displayData[i].concurrent !== displayData[i-1].concurrent) {
+          changePoints.push(i);
+        }
+      }
       
       appState.chart = new Chart(el.concurrencyChart, {
         type: 'line',
@@ -1285,6 +1433,16 @@
                   return '';
                 }
               }
+            },
+            annotation: {
+              annotations: changePoints.map(idx => ({
+                type: 'line',
+                xMin: idx,
+                xMax: idx,
+                borderColor: 'rgba(255, 99, 132, 0.25)',
+                borderWidth: 1,
+                borderDash: [2, 2]
+              }))
             }
           },
           scales: { 
@@ -1337,7 +1495,7 @@
       tbody.innerHTML = '';
       
       if (appState.concurrencyData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:48px;color:var(--text-light);">No data available. Run concurrency analysis first.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:48px;color:var(--text-light);">No data available. Run concurrency analysis first.</td></tr>`;
         return;
       }
       
@@ -1351,23 +1509,49 @@
       el.visibleIntervals.textContent = data.length;
       el.totalIntervals.textContent = appState.concurrencyData.length;
       
+      // Calculate duration of current streak
+      let currentStreak = 1;
+      let streakValue = data[0]?.concurrent;
+      
       data.forEach((item, idx) => {
+        const hour = getHourFromInterval(item.interval);
+        const minute = getMinuteFromInterval(item.interval);
+        const isHourStart = minute === 0;
+        
         const prev = idx > 0 ? data[idx - 1].concurrent : item.concurrent;
         const change = item.concurrent - prev;
         const changeIcon = change > 0 ? '▲' : change < 0 ? '▼' : '◆';
         const changeColor = change > 0 ? 'var(--danger)' : change < 0 ? 'var(--success)' : 'var(--text-light)';
         
-        // Calculate variance badge
-        const variance = Math.abs(change);
-        const varianceBadge = variance > 0 ? 
-          `<span class="variance-badge high-variance">Δ${variance}</span>` : 
-          `<span class="variance-badge low-variance">→</span>`;
+        // Update streak
+        if (idx > 0 && item.concurrent === data[idx-1].concurrent) {
+          currentStreak++;
+        } else {
+          currentStreak = 1;
+          streakValue = item.concurrent;
+        }
+        
+        const duration = currentStreak * 15; // minutes
+        
+        // Determine if this is a significant change
+        const isSignificantChange = Math.abs(change) >= 5;
+        const changeBadge = change !== 0 ? 
+          `<span class="variance-badge ${isSignificantChange ? 'high-variance' : 'low-variance'}">${change > 0 ? '+' : ''}${change}</span>` : 
+          '';
         
         const row = document.createElement('tr');
-        row.innerHTML = `<td>${formatIntervalDate(item.interval, appState.currentGranularity)}</td>
+        row.className = isHourStart ? 'hour-start' : '';
+        
+        // Add hour marker
+        const hourMarker = isHourStart ? 
+          `<span class="hour-marker" title="${hour}:00">${hour}</span>` : 
+          '';
+        
+        row.innerHTML = `<td>${hourMarker}</td>
+                         <td>${formatIntervalDate(item.interval, appState.currentGranularity)}</td>
                          <td style="font-weight:600;color:${item.concurrent > appState.threshold ? 'var(--danger)' : 'inherit'};">${item.concurrent}</td>
-                         <td style="color:${changeColor};">${changeIcon} ${change !== 0 ? Math.abs(change) : '0'}</td>
-                         <td>${varianceBadge}</td>`;
+                         <td style="color:${changeColor};">${changeIcon} ${change !== 0 ? Math.abs(change) : '0'} ${changeBadge}</td>
+                         <td>${duration} min</td>`;
         tbody.appendChild(row);
       });
     }
@@ -1379,7 +1563,7 @@
         return; 
       }
       
-      let csv = 'Genesys Cloud Concurrency Report - London Region (SESSION SPLITTING)\n';
+      let csv = 'Genesys Cloud Concurrency Report - London Region (HOUR TRACKING)\n';
       csv += `Generated: ${new Date().toLocaleString()}\n`;
       csv += `Environment: London (euw2.pure.cloud)\n`;
       csv += `Period: ${el.dateFrom.value} to ${el.dateTo.value}\n`;
@@ -1389,8 +1573,18 @@
       csv += `Peak Concurrency: ${appState.stats.peakConcurrency}\n`;
       csv += `Average Concurrency: ${appState.stats.avgConcurrency}\n`;
       csv += `Total Intervals: ${appState.stats.totalIntervals}\n`;
-      csv += `FIXES APPLIED: Session splitting into 15-min chunks\n\n`;
-      csv += 'PEAK INTERVALS (Exceeding Threshold)\n';
+      csv += `Changes Between Intervals: ${appState.stats.changeCount} (${appState.stats.changePercent}%)\n`;
+      csv += `FIXES APPLIED: Hour tracking, change analysis, duration tracking\n\n`;
+      
+      csv += 'HOURLY AVERAGES\n';
+      csv += 'Hour,Average Concurrency,Min,Max\n';
+      if (appState.stats.hourlyAverages) {
+        appState.stats.hourlyAverages.forEach(h => {
+          csv += `${h.hour.toString().padStart(2,'0')}:00,${h.avg},${h.min},${h.max}\n`;
+        });
+      }
+      
+      csv += '\nPEAK INTERVALS (Exceeding Threshold)\n';
       csv += 'Interval,Concurrent Users,% of Peak,Status\n';
       
       const peakData = appState.concurrencyData.filter(item => item.concurrent > appState.threshold).sort((a, b) => b.concurrent - a.concurrent);
@@ -1400,11 +1594,12 @@
       });
       
       csv += '\nALL INTERVALS\n';
-      csv += 'Interval,Concurrent Users,Change\n';
+      csv += 'Interval,Concurrent Users,Change,Hour\n';
       appState.concurrencyData.forEach((item, idx) => {
         const prev = idx > 0 ? appState.concurrencyData[idx - 1].concurrent : item.concurrent;
         const change = item.concurrent - prev;
-        csv += `${item.interval},${item.concurrent},${change > 0 ? '+' : ''}${change}\n`;
+        const hour = getHourFromInterval(item.interval);
+        csv += `${item.interval},${item.concurrent},${change > 0 ? '+' : ''}${change},${hour}:00\n`;
       });
       
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1412,7 +1607,7 @@
       const a = document.createElement('a');
       const dateStr = new Date().toISOString().split('T')[0];
       a.href = url;
-      a.download = `genesys_concurrency_london_split_report_${dateStr}.csv`;
+      a.download = `genesys_concurrency_london_hour_report_${dateStr}.csv`;
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
       showStatusMessage('✅ Report exported successfully', 'success');
     }
@@ -1421,7 +1616,15 @@
       if (confirm('Reset the application? This will clear all data but keep the connection.')) {
         appState.users = []; 
         appState.concurrencyData = [];
-        appState.stats = { totalUsers: 0, peakConcurrency: 0, avgConcurrency: 0, totalIntervals: 0, peakInterval: null };
+        appState.stats = { 
+          totalUsers: 0, 
+          peakConcurrency: 0, 
+          avgConcurrency: 0, 
+          totalIntervals: 0, 
+          peakInterval: null,
+          changeCount: 0,
+          changePercent: 0
+        };
         
         el.statTotalUsers.textContent = '0'; 
         el.statPeakConcurrency.textContent = '0'; 
@@ -1433,6 +1636,8 @@
         el.peakDayConcurrency.textContent = '0 concurrent users';
         el.peakHour.textContent = '--:--'; 
         el.peakHourConcurrency.textContent = '0 concurrent users';
+        el.totalChanges.textContent = '0';
+        el.changePercent.textContent = '0';
         
         el.btnFetchConcurrency.disabled = true; 
         el.btnExport.disabled = true;
@@ -1455,7 +1660,7 @@
 
     // ==================== INITIALISATION ====================
     function initializeApp() {
-      console.log("Initializing SESSION SPLITTING London app...");
+      console.log("Initializing HOUR TRACKING London app...");
       const last7Days = getLast7Days();
       if (el.dateFrom) el.dateFrom.value = last7Days.from;
       if (el.dateTo) el.dateTo.value = last7Days.to;
@@ -1511,7 +1716,7 @@
 
     // ==================== START ====================
     window.onload = function() {
-      console.log("SESSION SPLITTING London region page loaded, initializing...");
+      console.log("HOUR TRACKING London region page loaded, initializing...");
       initAuth();
       initializeApp();
     };
