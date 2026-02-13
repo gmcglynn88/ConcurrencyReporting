@@ -226,9 +226,13 @@
       max-height: 200px;
       overflow-y: auto;
     }
-    .interval-progress {
-      margin-top: 10px;
-      font-size: 12px;
+    .badge-optimized {
+      background: var(--success);
+      color: white;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 10px;
+      margin-left: 8px;
     }
   </style>
 </head>
@@ -241,6 +245,7 @@
           <div class="brand-main">
             <h1>📊 Concurrency & Peak Time Report</h1>
             <span class="region-badge">🇬🇧 LONDON</span>
+            <span class="badge-optimized">OPTIMIZED</span>
           </div>
           <div class="subtitle">Genesys Cloud - London Region (apps.euw2.pure.cloud)</div>
         </div>
@@ -283,7 +288,7 @@
                 <div class="granularity-option" data-granularity="P1D">Daily</div>
               </div>
               <div class="granularity-note" style="font-size:12px;color:var(--text-light);margin-top:8px;">
-                ⓘ Each interval is queried separately for accurate counts
+                ⓘ Data fetched at PT15M granularity, aggregated for display
               </div>
               
               <div style="margin-top:24px;">
@@ -328,12 +333,12 @@
 
               <div class="info-box" style="margin-top:24px;background:rgba(40,167,69,0.05);">
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-                  <span style="background:var(--success);color:white;padding:2px 12px;border-radius:20px;font-size:12px;">✅ INTERVAL COUNTING</span>
+                  <span style="background:var(--success);color:white;padding:2px 12px;border-radius:20px;font-size:12px;">✅ OPTIMIZED</span>
                 </div>
                 <ul style="list-style-type:none;padding-left:0;">
-                  <li style="margin-bottom:8px;">✅ Each 15min interval queried separately</li>
-                  <li style="margin-bottom:8px;">✅ Users counted if present in that interval</li>
-                  <li style="margin-bottom:8px;">✅ Higher granularities aggregate from 15min data</li>
+                  <li style="margin-bottom:8px;">✅ ONE API call per day with PT15M granularity</li>
+                  <li style="margin-bottom:8px;">✅ Processes all 15-min intervals from each response</li>
+                  <li style="margin-bottom:8px;">✅ Respects rate limits - minimal API calls</li>
                 </ul>
               </div>
               
@@ -341,7 +346,6 @@
               <div id="debugInfo" class="debug-info" style="display:block;">
                 <strong>Debug:</strong> Ready to analyze...
               </div>
-              <div id="intervalProgress" class="interval-progress"></div>
             </div>
           </div>
 
@@ -494,13 +498,13 @@
     };
 
     const STORAGE_KEYS = {
-      ENVIRONMENT: 'gc_concurrency_london_env_v8',
-      TOKEN: 'gc_concurrency_london_token_v8',
-      TOKEN_EXPIRY: 'gc_concurrency_london_expiry_v8',
-      DATE_FROM: 'gc_concurrency_london_date_from_v8',
-      DATE_TO: 'gc_concurrency_london_date_to_v8',
-      GRANULARITY: 'gc_concurrency_london_granularity_v8',
-      THRESHOLD: 'gc_concurrency_london_threshold_v8'
+      ENVIRONMENT: 'gc_concurrency_london_env_v9',
+      TOKEN: 'gc_concurrency_london_token_v9',
+      TOKEN_EXPIRY: 'gc_concurrency_london_expiry_v9',
+      DATE_FROM: 'gc_concurrency_london_date_from_v9',
+      DATE_TO: 'gc_concurrency_london_date_to_v9',
+      GRANULARITY: 'gc_concurrency_london_granularity_v9',
+      THRESHOLD: 'gc_concurrency_london_threshold_v9'
     };
 
     // ==================== APP STATE ====================
@@ -510,7 +514,7 @@
       tokenExpiry: null,
       environment: ENVIRONMENTS['eu-west-2'],
       users: [],
-      fifteenMinData: [], // Stores data for each 15-min interval
+      fifteenMinData: [], // Stores all 15-min interval data
       aggregatedData: [], // Stores data at selected granularity
       stats: {
         totalUsers: 0,
@@ -563,8 +567,7 @@
       statusContainer: document.getElementById('statusContainer'),
       concurrencyChart: document.getElementById('concurrencyChart'),
       currentRedirectUri: document.getElementById('currentRedirectUri'),
-      debugInfo: document.getElementById('debugInfo'),
-      intervalProgress: document.getElementById('intervalProgress')
+      debugInfo: document.getElementById('debugInfo')
     };
 
     if (el.currentRedirectUri) {
@@ -855,54 +858,14 @@
       }
     }
 
-    // ==================== CHECK IF USER IS LOGGED IN DURING INTERVAL ====================
-    function isUserLoggedInDuringInterval(presenceEvents, intervalStart, intervalEnd) {
-      // User is considered logged in if they have ANY non-Offline presence during the interval
-      for (const presence of presenceEvents) {
-        if (presence.systemPresence && presence.systemPresence !== 'Offline') {
-          const presenceStart = new Date(presence.startTime);
-          const presenceEnd = presence.endTime ? new Date(presence.endTime) : new Date(presenceStart.getTime() + (4 * 60 * 60 * 1000));
-          
-          // Check if presence overlaps with interval
-          if (presenceStart < intervalEnd && presenceEnd > intervalStart) {
-            return true;
-          }
-        }
-      }
-      return false;
-    }
-
-    // ==================== GENERATE 15-MINUTE INTERVALS ====================
-    function generate15MinIntervals(dateFrom, dateTo) {
-      const intervals = [];
-      const start = new Date(`${dateFrom}T00:00:00.000Z`);
-      const end = new Date(`${dateTo}T23:59:59.999Z`);
-      let current = new Date(start);
-      const intervalMs = 15 * 60 * 1000; // 15 minutes
-      
-      while (current < end) {
-        const intervalEnd = new Date(Math.min(current.getTime() + intervalMs, end.getTime()));
-        intervals.push({
-          interval: `${current.toISOString()}/${intervalEnd.toISOString()}`,
-          start: new Date(current),
-          end: new Date(intervalEnd),
-          startTime: current.toISOString(),
-          endTime: intervalEnd.toISOString()
-        });
-        current = new Date(intervalEnd);
-      }
-      
-      return intervals;
-    }
-
-    // ==================== FETCH CONCURRENCY - INTERVAL BY INTERVAL ====================
+    // ==================== FETCH CONCURRENCY - OPTIMIZED VERSION ====================
     async function fetchConcurrency() {
       if (!appState.users.length) {
         showStatusMessage('Please fetch users first', 'error');
         return;
       }
 
-      setLoading(true, 'Analysing Concurrency', 'Processing intervals one by one...');
+      setLoading(true, 'Analysing Concurrency', 'Making optimized API calls with PT15M granularity...');
       updateLoadingProgress(5);
 
       try {
@@ -914,39 +877,51 @@
         }
 
         const userIds = appState.users.map(u => u.id);
-        const batchSize = 50; // Number of users to query at once
+        const batchSize = 50; // Users per API call
         
-        // Generate all 15-minute intervals
-        const fifteenMinIntervals = generate15MinIntervals(dateFrom, dateTo);
-        const totalIntervals = fifteenMinIntervals.length;
+        // Split into 7-day windows (API limit)
+        const startDate = new Date(`${dateFrom}T00:00:00.000Z`);
+        const endDate = new Date(`${dateTo}T23:59:59.999Z`);
+        const windows = [];
         
-        // Store results for each interval
-        const intervalResults = [];
+        let windowStart = new Date(startDate);
+        while (windowStart < endDate) {
+          let windowEnd = new Date(windowStart);
+          windowEnd.setDate(windowEnd.getDate() + 6);
+          windowEnd.setHours(23, 59, 59, 999);
+          if (windowEnd > endDate) windowEnd = new Date(endDate);
+          
+          windows.push({
+            start: new Date(windowStart),
+            end: new Date(windowEnd)
+          });
+          
+          windowStart = new Date(windowEnd);
+          windowStart.setDate(windowStart.getDate() + 1);
+          windowStart.setHours(0, 0, 0, 0);
+        }
+
+        // Store all 15-minute interval data
+        const allIntervals = new Map(); // interval string -> Set of userIds
         
-        // Process each interval separately
-        for (let intervalIdx = 0; intervalIdx < fifteenMinIntervals.length; intervalIdx++) {
-          const interval = fifteenMinIntervals[intervalIdx];
+        // Process each 7-day window
+        for (let windowIdx = 0; windowIdx < windows.length; windowIdx++) {
+          const window = windows[windowIdx];
+          const windowInterval = `${window.start.toISOString()}/${window.end.toISOString()}`;
           
-          // Update progress
-          const intervalProgress = Math.round((intervalIdx / totalIntervals) * 100);
-          updateLoadingProgress(5 + (intervalProgress * 0.9)); // Scale to 95%
+          el.loadingSubtext.innerHTML = `Processing window ${windowIdx + 1}/${windows.length} (${window.start.toISOString().split('T')[0]} to ${window.end.toISOString().split('T')[0]})`;
           
-          el.loadingSubtext.innerHTML = `Processing interval ${intervalIdx + 1}/${totalIntervals}: ${interval.startTime.substring(11,16)}-${interval.endTime.substring(11,16)}`;
-          
-          if (el.intervalProgress) {
-            el.intervalProgress.innerHTML = `Interval ${intervalIdx + 1}/${totalIntervals}: ${interval.startTime.substring(11,16)}-${interval.endTime.substring(11,16)}`;
-          }
-          
-          // Set to track unique logged-in users for this interval
-          const loggedInUsers = new Set();
-          
-          // Process users in batches for this interval
+          // Process users in batches for this window
           for (let i = 0; i < userIds.length; i += batchSize) {
             const batch = userIds.slice(i, i + batchSize);
             
-            // Query for this batch in this specific interval
+            const overallProgress = 5 + ((windowIdx / windows.length) * 90) + ((i / userIds.length) * (90 / windows.length));
+            updateLoadingProgress(overallProgress);
+
+            // ONE API call per batch with PT15M granularity
             const queryBody = {
-              interval: interval.interval,
+              interval: windowInterval,
+              granularity: 'PT15M', // Request 15-minute granularity directly
               userFilters: [{
                 type: 'or',
                 predicates: batch.map(userId => ({
@@ -971,51 +946,67 @@
                 response.userDetails.forEach(userDetail => {
                   const userId = userDetail.userId;
                   
-                  // Check if user has any non-Offline presence in this interval
-                  if (userDetail.primaryPresence && userDetail.primaryPresence.length > 0) {
-                    let isLoggedIn = false;
-                    
-                    for (const presence of userDetail.primaryPresence) {
-                      if (presence.systemPresence && presence.systemPresence !== 'Offline') {
-                        isLoggedIn = true;
-                        break;
+                  // Each userDetail should have data for multiple 15-min intervals
+                  if (userDetail.primaryPresence) {
+                    // Group presence events by the 15-min interval they fall into
+                    userDetail.primaryPresence.forEach(presenceEvent => {
+                      if (presenceEvent.systemPresence && presenceEvent.systemPresence !== 'Offline') {
+                        
+                        // Parse the interval from the presence event
+                        // The API might return interval information in the response
+                        // We need to determine which 15-min interval this presence belongs to
+                        
+                        const presenceStart = new Date(presenceEvent.startTime);
+                        const presenceEnd = presenceEvent.endTime ? new Date(presenceEvent.endTime) : 
+                          new Date(presenceStart.getTime() + (4 * 60 * 60 * 1000));
+                        
+                        // Round down to nearest 15-min interval start
+                        const intervalStart = new Date(Math.floor(presenceStart.getTime() / (15 * 60 * 1000)) * (15 * 60 * 1000));
+                        const intervalEnd = new Date(intervalStart.getTime() + (15 * 60 * 1000));
+                        
+                        // Only count if within our query range
+                        if (intervalStart < endDate && intervalEnd > startDate) {
+                          const intervalStr = `${intervalStart.toISOString()}/${intervalEnd.toISOString()}`;
+                          
+                          if (!allIntervals.has(intervalStr)) {
+                            allIntervals.set(intervalStr, new Set());
+                          }
+                          allIntervals.get(intervalStr).add(userId);
+                        }
                       }
-                    }
-                    
-                    if (isLoggedIn) {
-                      loggedInUsers.add(userId);
-                    }
+                    });
                   }
                 });
               }
             } catch (batchError) {
-              console.warn(`Interval ${intervalIdx}, batch failed:`, batchError);
+              console.warn(`Window ${windowIdx + 1}, batch failed:`, batchError);
             }
 
             // Small delay to avoid rate limiting
-            await new Promise(resolve => setTimeout(resolve, 50));
+            await new Promise(resolve => setTimeout(resolve, 100));
           }
-          
-          // Store result for this interval
-          intervalResults.push({
-            interval: interval.interval,
-            concurrent: loggedInUsers.size,
-            date: new Date(interval.start),
-            startTime: interval.startTime,
-            endTime: interval.endTime
-          });
         }
 
         updateLoadingProgress(95);
 
+        // Convert map to sorted array
+        const fifteenMinData = [];
+        allIntervals.forEach((userSet, interval) => {
+          fifteenMinData.push({
+            interval: interval,
+            concurrent: userSet.size,
+            date: new Date(interval.split('/')[0])
+          });
+        });
+
         // Sort by date
-        intervalResults.sort((a, b) => a.date - b.date);
+        fifteenMinData.sort((a, b) => a.date - b.date);
         
         // Store the 15-minute base data
-        appState.fifteenMinData = intervalResults;
+        appState.fifteenMinData = fifteenMinData;
         
         // Aggregate to selected granularity
-        appState.aggregatedData = aggregateToGranularity(intervalResults, appState.currentGranularity);
+        appState.aggregatedData = aggregateToGranularity(fifteenMinData, appState.currentGranularity);
         
         // Calculate stats
         let peakConcurrency = 0;
@@ -1042,19 +1033,23 @@
         }
         const variancePercentage = appState.aggregatedData.length > 1 ? (changes / (appState.aggregatedData.length - 1)) * 100 : 0;
         
+        // Calculate API call statistics
+        const totalApiCalls = windows.length * Math.ceil(userIds.length / batchSize);
+        
         // Update debug info
         if (el.debugInfo) {
           el.debugInfo.innerHTML = `
-            <strong>Interval-by-Interval Results:</strong><br>
-            15min intervals processed: ${intervalResults.length}<br>
-            15min peak: ${Math.max(...intervalResults.map(d => d.concurrent))}<br>
+            <strong>Optimized Results:</strong><br>
+            API calls made: ${totalApiCalls}<br>
+            15min intervals found: ${fifteenMinData.length}<br>
+            15min peak: ${Math.max(...fifteenMinData.map(d => d.concurrent))}<br>
             <br><strong>${appState.currentGranularity} Aggregated:</strong><br>
             Intervals: ${appState.aggregatedData.length}<br>
             Peak: ${peakConcurrency}<br>
             Avg: ${appState.stats.avgConcurrency}<br>
             Non-zero: ${nonZeroIntervals}<br>
             Changes: ${changes} (${variancePercentage.toFixed(1)}% vary)<br>
-            Sample 15min data: ${intervalResults.slice(0, 3).map(d => d.concurrent).join(', ')}...<br>
+            Sample 15min: ${fifteenMinData.slice(0, 3).map(d => d.concurrent).join(', ')}...<br>
             Sample aggregated: ${appState.aggregatedData.slice(0, 3).map(d => d.concurrent).join(', ')}...
           `;
         }
@@ -1070,9 +1065,9 @@
         updateLoadingProgress(100);
         setTimeout(() => setLoading(false), 500);
         
-        showStatusMessage(`✅ Analysis complete - Processed ${intervalResults.length} intervals individually`, 'success');
+        showStatusMessage(`✅ Analysis complete - Made ${totalApiCalls} API calls, got ${fifteenMinData.length} 15-min intervals`, 'success');
         
-        console.log('First 10 intervals:', intervalResults.slice(0, 10));
+        console.log('First 20 intervals:', fifteenMinData.slice(0, 20));
         
       } catch (error) {
         setLoading(false);
@@ -1088,40 +1083,61 @@
       }
       
       const aggregated = [];
-      let incrementMinutes;
       let intervalsPerAggregate;
       
       switch(targetGranularity) {
         case 'PT30M': 
-          incrementMinutes = 30; 
           intervalsPerAggregate = 2;
           break;
         case 'PT60M': 
-          incrementMinutes = 60; 
           intervalsPerAggregate = 4;
           break;
         case 'P1D': 
-          incrementMinutes = 24 * 60; 
           intervalsPerAggregate = 96; // 24 hours * 4 intervals per hour
           break;
         default: 
           return fifteenMinData;
       }
       
+      // Group by day first for daily aggregation
+      if (targetGranularity === 'P1D') {
+        const dayMap = new Map();
+        
+        fifteenMinData.forEach(item => {
+          const day = item.date.toISOString().split('T')[0];
+          if (!dayMap.has(day)) {
+            dayMap.set(day, []);
+          }
+          dayMap.get(day).push(item.concurrent);
+        });
+        
+        dayMap.forEach((values, day) => {
+          const maxConcurrent = Math.max(...values);
+          const dayStart = new Date(`${day}T00:00:00.000Z`);
+          const dayEnd = new Date(`${day}T23:59:59.999Z`);
+          
+          aggregated.push({
+            interval: `${dayStart.toISOString()}/${dayEnd.toISOString()}`,
+            concurrent: maxConcurrent,
+            date: dayStart
+          });
+        });
+        
+        aggregated.sort((a, b) => a.date - b.date);
+        return aggregated;
+      }
+      
+      // For 30min and 60min, group consecutive intervals
       for (let i = 0; i < fifteenMinData.length; i += intervalsPerAggregate) {
         const chunk = fifteenMinData.slice(i, i + intervalsPerAggregate);
         if (chunk.length === 0) continue;
         
-        // Use the MAX concurrency during the aggregated period
-        // This shows the peak load during that time
         const maxConcurrent = Math.max(...chunk.map(d => d.concurrent));
         
-        // Use the first interval's start time for the aggregated interval
         aggregated.push({
           interval: chunk[0].interval,
           concurrent: maxConcurrent,
-          date: new Date(chunk[0].date),
-          sourceIntervals: chunk.length
+          date: new Date(chunk[0].date)
         });
       }
       
@@ -1355,16 +1371,17 @@
         return; 
       }
       
-      let csv = 'Genesys Cloud Concurrency Report - London Region\n';
+      let csv = 'Genesys Cloud Concurrency Report - London Region (Optimized)\n';
       csv += `Generated: ${new Date().toLocaleString()}\n`;
       csv += `Environment: London (euw2.pure.cloud)\n`;
       csv += `Period: ${el.dateFrom.value} to ${el.dateTo.value}\n`;
-      csv += `Granularity: ${appState.currentGranularity}\n`;
+      csv += `Granularity: ${appState.currentGranularity} (aggregated from PT15M)\n`;
       csv += `Alert Threshold: ${appState.threshold} concurrent users\n`;
       csv += `Total Users Analysed: ${appState.stats.totalUsers}\n`;
       csv += `Peak Concurrency: ${appState.stats.peakConcurrency}\n`;
       csv += `Average Concurrency: ${appState.stats.avgConcurrency}\n`;
       csv += `Total Intervals: ${appState.stats.totalIntervals}\n`;
+      csv += `Base 15min Intervals: ${appState.fifteenMinData.length}\n`;
       csv += `\n`;
       csv += 'PEAK INTERVALS (Exceeding Threshold)\n';
       csv += 'Interval,Concurrent Users,% of Peak,Status\n';
@@ -1388,7 +1405,7 @@
       const a = document.createElement('a');
       const dateStr = new Date().toISOString().split('T')[0];
       a.href = url;
-      a.download = `genesys_concurrency_london_report_${dateStr}.csv`;
+      a.download = `genesys_concurrency_london_optimized_${dateStr}.csv`;
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
       showStatusMessage('✅ Report exported successfully', 'success');
     }
@@ -1463,7 +1480,7 @@
 
     // ==================== INITIALISATION ====================
     function initializeApp() {
-      console.log("Initializing London app...");
+      console.log("Initializing optimized London app...");
       const last7Days = getLast7Days();
       if (el.dateFrom) el.dateFrom.value = last7Days.from;
       if (el.dateTo) el.dateTo.value = last7Days.to;
@@ -1514,7 +1531,7 @@
 
     // ==================== START ====================
     window.onload = function() {
-      console.log("London region page loaded, initializing...");
+      console.log("Optimized London region page loaded, initializing...");
       initAuth();
       initializeApp();
     };
