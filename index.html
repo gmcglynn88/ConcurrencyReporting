@@ -374,7 +374,7 @@
               </div>
               <div class="stat-card interact-stat">
                 <div class="stat-label">Total Interaction</div>
-                <div class="stat-value" id="statTotalInteraction">0</div>
+                <div class="stat-value" id="statTotalInteractionHours">0</div>
                 <div style="font-size:12px;color:var(--text-light);">Hours (non-Offline)</div>
               </div>
             </div>
@@ -547,7 +547,7 @@
       statTotalUsers: document.getElementById('statTotalUsers'),
       statPeakConcurrency: document.getElementById('statPeakConcurrency'),
       statAvgConcurrency: document.getElementById('statAvgConcurrency'),
-      statTotalInteraction: document.getElementById('statTotalInteraction'),
+      statTotalInteractionHours: document.getElementById('statTotalInteractionHours'),
       statTotalIntervals: document.getElementById('statTotalIntervals'),
       peakTimeOverall: document.getElementById('peakTimeOverall'),
       peakConcurrencyOverall: document.getElementById('peakConcurrencyOverall'),
@@ -721,7 +721,9 @@
     }
 
     function updateLoadingProgress(percent) {
-      el.loadingProgressFill.style.width = `${percent}%`;
+      if (el.loadingProgressFill) {
+        el.loadingProgressFill.style.width = `${percent}%`;
+      }
     }
 
     function updateConnectionStatus(connected) {
@@ -861,9 +863,9 @@
         }
         appState.users = allUsers;
         appState.stats.totalUsers = allUsers.length;
-        el.statTotalUsers.textContent = allUsers.length;
+        if (el.statTotalUsers) el.statTotalUsers.textContent = allUsers.length;
         showStatusMessage(`✅ Fetched ${allUsers.length} active users from London`, 'success');
-        el.btnFetchConcurrency.disabled = false;
+        if (el.btnFetchConcurrency) el.btnFetchConcurrency.disabled = false;
         updateLoadingProgress(100);
         setTimeout(() => setLoading(false), 500);
       } catch (error) {
@@ -968,7 +970,9 @@
           const window = windows[windowIdx];
           const windowInterval = `${window.start.toISOString()}/${window.end.toISOString()}`;
           
-          el.loadingSubtext.innerHTML = `Processing window ${windowIdx + 1}/${windows.length}...`;
+          if (el.loadingSubtext) {
+            el.loadingSubtext.innerHTML = `Processing window ${windowIdx + 1}/${windows.length}...`;
+          }
           
           // Process users in batches
           for (let i = 0; i < userIds.length; i += batchSize) {
@@ -1097,7 +1101,7 @@
         renderPeakTable();
         renderIntervalsTable();
         
-        el.btnExport.disabled = false;
+        if (el.btnExport) el.btnExport.disabled = false;
         
         updateLoadingProgress(100);
         setTimeout(() => setLoading(false), 500);
@@ -1198,13 +1202,17 @@
       appState.stats.peakInterval = peak.interval;
       
       const peakDate = new Date(peak.interval.split('/')[0]);
-      el.peakTimeOverall.textContent = peakDate.toLocaleString('en-GB', { 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        hour12: false,
-        timeZone: 'UTC' 
-      });
-      el.peakConcurrencyOverall.textContent = `${peak.concurrent} concurrent users`;
+      if (el.peakTimeOverall) {
+        el.peakTimeOverall.textContent = peakDate.toLocaleString('en-GB', { 
+          hour: '2-digit', 
+          minute: '2-digit', 
+          hour12: false,
+          timeZone: 'UTC' 
+        });
+      }
+      if (el.peakConcurrencyOverall) {
+        el.peakConcurrencyOverall.textContent = `${peak.concurrent} concurrent users`;
+      }
       
       const dayMap = new Map();
       displayData.forEach(item => {
@@ -1222,8 +1230,8 @@
         } 
       });
       
-      el.peakDay.textContent = peakDay || '--/--/----';
-      el.peakDayConcurrency.textContent = `${peakDayValue} concurrent users`;
+      if (el.peakDay) el.peakDay.textContent = peakDay || '--/--/----';
+      if (el.peakDayConcurrency) el.peakDayConcurrency.textContent = `${peakDayValue} concurrent users`;
       
       if (appState.currentGranularity !== 'P1D') {
         const hourMap = new Map();
@@ -1242,28 +1250,28 @@
           } 
         });
         
-        el.peakHour.textContent = peakHour || '--:--';
-        el.peakHourConcurrency.textContent = `${peakHourValue} concurrent users`;
+        if (el.peakHour) el.peakHour.textContent = peakHour || '--:--';
+        if (el.peakHourConcurrency) el.peakHourConcurrency.textContent = `${peakHourValue} concurrent users`;
       } else {
-        el.peakHour.textContent = '--:--';
-        el.peakHourConcurrency.textContent = 'Not available for daily granularity';
+        if (el.peakHour) el.peakHour.textContent = '--:--';
+        if (el.peakHourConcurrency) el.peakHourConcurrency.textContent = 'Not available for daily granularity';
       }
     }
 
     // ==================== UI RENDERING ====================
     function updateStatsUI() {
-      el.statPeakConcurrency.textContent = appState.stats.peakConcurrency;
-      el.statAvgConcurrency.textContent = appState.stats.avgConcurrency;
-      el.statTotalIntervals.textContent = appState.stats.totalIntervals;
-      el.statTotalInteraction.textContent = appState.stats.totalInteractionHours;
-      el.thresholdValue.textContent = appState.threshold;
+      if (el.statPeakConcurrency) el.statPeakConcurrency.textContent = appState.stats.peakConcurrency;
+      if (el.statAvgConcurrency) el.statAvgConcurrency.textContent = appState.stats.avgConcurrency;
+      if (el.statTotalIntervals) el.statTotalIntervals.textContent = appState.stats.totalIntervals;
+      if (el.statTotalInteractionHours) el.statTotalInteractionHours.textContent = appState.stats.totalInteractionHours;
+      if (el.thresholdValue) el.thresholdValue.textContent = appState.threshold;
       
       let granularityText = '15-minute';
       if (appState.currentGranularity === 'PT15M') granularityText = '15-minute';
       else if (appState.currentGranularity === 'PT30M') granularityText = '30-minute';
       else if (appState.currentGranularity === 'PT60M') granularityText = '1-hour';
       else if (appState.currentGranularity === 'P1D') granularityText = 'daily';
-      el.granularityLabel.textContent = `${granularityText} intervals (peak per period)`;
+      if (el.granularityLabel) el.granularityLabel.textContent = `${granularityText} intervals (peak per period)`;
     }
 
     function renderConcurrencyChart() {
@@ -1341,6 +1349,8 @@
 
     function renderPeakTable() {
       const tbody = el.peakTableBody;
+      if (!tbody) return;
+      
       tbody.innerHTML = '';
       const displayData = appState.aggregatedData;
       const threshold = appState.threshold;
@@ -1377,6 +1387,8 @@
 
     function renderIntervalsTable() {
       const tbody = el.intervalsTableBody;
+      if (!tbody) return;
+      
       tbody.innerHTML = '';
       
       const displayData = appState.aggregatedData;
@@ -1392,8 +1404,8 @@
         data = data.filter(item => formatIntervalDate(item.interval, appState.currentGranularity).toLowerCase().includes(searchTerm));
       }
       
-      el.visibleIntervals.textContent = data.length;
-      el.totalIntervals.textContent = displayData.length;
+      if (el.visibleIntervals) el.visibleIntervals.textContent = data.length;
+      if (el.totalIntervals) el.totalIntervals.textContent = displayData.length;
       
       data.forEach((item, idx) => {
         const prev = idx > 0 ? data[idx - 1].concurrent : item.concurrent;
@@ -1477,20 +1489,20 @@
           totalInteractionHours: 0
         };
         
-        el.statTotalUsers.textContent = '0'; 
-        el.statPeakConcurrency.textContent = '0'; 
-        el.statAvgConcurrency.textContent = '0'; 
-        el.statTotalIntervals.textContent = '0';
-        el.statTotalInteraction.textContent = '0';
-        el.peakTimeOverall.textContent = '--:--'; 
-        el.peakConcurrencyOverall.textContent = '0 concurrent users';
-        el.peakDay.textContent = '--/--/----'; 
-        el.peakDayConcurrency.textContent = '0 concurrent users';
-        el.peakHour.textContent = '--:--'; 
-        el.peakHourConcurrency.textContent = '0 concurrent users';
+        if (el.statTotalUsers) el.statTotalUsers.textContent = '0'; 
+        if (el.statPeakConcurrency) el.statPeakConcurrency.textContent = '0'; 
+        if (el.statAvgConcurrency) el.statAvgConcurrency.textContent = '0'; 
+        if (el.statTotalIntervals) el.statTotalIntervals.textContent = '0';
+        if (el.statTotalInteractionHours) el.statTotalInteractionHours.textContent = '0';
+        if (el.peakTimeOverall) el.peakTimeOverall.textContent = '--:--'; 
+        if (el.peakConcurrencyOverall) el.peakConcurrencyOverall.textContent = '0 concurrent users';
+        if (el.peakDay) el.peakDay.textContent = '--/--/----'; 
+        if (el.peakDayConcurrency) el.peakDayConcurrency.textContent = '0 concurrent users';
+        if (el.peakHour) el.peakHour.textContent = '--:--'; 
+        if (el.peakHourConcurrency) el.peakHourConcurrency.textContent = '0 concurrent users';
         
-        el.btnFetchConcurrency.disabled = true; 
-        el.btnExport.disabled = true;
+        if (el.btnFetchConcurrency) el.btnFetchConcurrency.disabled = true; 
+        if (el.btnExport) el.btnExport.disabled = true;
         
         if (appState.chart) { 
           appState.chart.destroy(); 
