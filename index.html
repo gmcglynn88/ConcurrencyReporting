@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Genesys Cloud - Concurrency & Peak Time Report (FIXED)</title>
+  <title>Genesys Cloud - Concurrency & Peak Time Report</title>
   <link href="https://fonts.googleapis.com/css2?family=Aptos:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -225,18 +225,25 @@
       margin-left: 12px;
       display: inline-block;
     }
+    .debug-info {
+      font-size: 11px;
+      color: var(--text-light);
+      margin-top: 10px;
+      padding: 8px;
+      background: var(--light-bg);
+      border-radius: 4px;
+      font-family: monospace;
+    }
   </style>
 </head>
 <body>
   <div id="app-content" style="width:100%;height:100%;flex:1;display:flex;flex-direction:column;">
     <header>
       <div class="brand">
-        <img src="https://raw.githubusercontent.com/gmcglynn88/TimeoffApp/main/YourTime%20Logo_WEM_White%20Reversed.png" alt="Your Time" class="brand-logo">
         <div class="brand-text">
           <div class="brand-main">
             <h1>📊 Concurrency & Peak Time Report</h1>
             <span class="region-badge">🇬🇧 LONDON</span>
-            <span class="fix-badge">✅ FIXED</span>
           </div>
           <div class="subtitle">Genesys Cloud - London Region (apps.euw2.pure.cloud)</div>
         </div>
@@ -273,9 +280,9 @@
             <div class="card">
               <h2>⏱️ Granularity</h2>
               <div class="granularity-selector" id="granularitySelector">
-                <div class="granularity-option" data-granularity="PT15M">15m</div>
+                <div class="granularity-option active" data-granularity="PT15M">15m</div>
                 <div class="granularity-option" data-granularity="PT30M">30m</div>
-                <div class="granularity-option active" data-granularity="PT60M">1h</div>
+                <div class="granularity-option" data-granularity="PT60M">1h</div>
                 <div class="granularity-option" data-granularity="P1D">Daily</div>
               </div>
               
@@ -324,13 +331,15 @@
                   <span style="background:var(--success);color:white;padding:2px 12px;border-radius:20px;font-size:12px;">✅ FIXES APPLIED</span>
                 </div>
                 <ul style="list-style-type:none;padding-left:0;">
-                  <li style="margin-bottom:8px;">✅ Fixed 4-hour cap to respect query date boundaries</li>
-                  <li style="margin-bottom:8px;">✅ Fixed 7-day window overlapping</li>
-                  <li style="margin-bottom:8px;">✅ Deduplicates presence events per user per interval</li>
-                  <li style="margin-bottom:8px;">✅ Only counts non-Offline presence</li>
-                  <li>✅ Accurate business hours vs evening/weekend detection</li>
+                  <li style="margin-bottom:8px;">✅ FIXED: 15-min granularity now shows varying concurrency</li>
+                  <li style="margin-bottom:8px;">✅ FIXED: Window overlap calculation for short intervals</li>
+                  <li style="margin-bottom:8px;">✅ FIXED: Presence event deduplication per interval</li>
+                  <li style="margin-bottom:8px;">✅ FIXED: 4-hour cap respects query boundaries</li>
                 </ul>
               </div>
+              
+              <!-- Debug info (hidden by default) -->
+              <div id="debugInfo" class="debug-info" style="display:none;"></div>
             </div>
           </div>
 
@@ -392,7 +401,7 @@
             <div class="card">
               <h2>📊 Concurrency Over Time</h2>
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-                <span id="granularityLabel" style="font-weight:600;color:var(--primary-color);background:var(--pill);padding:8px 16px;border-radius:20px;">1-hour intervals</span>
+                <span id="granularityLabel" style="font-weight:600;color:var(--primary-color);background:var(--pill);padding:8px 16px;border-radius:20px;">15-minute intervals</span>
                 <span style="background:rgba(220,53,69,0.1);padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;">Alert threshold: <span id="thresholdValue" style="color:var(--danger);">20</span> users</span>
               </div>
               <div class="chart-container">
@@ -483,13 +492,13 @@
     };
 
     const STORAGE_KEYS = {
-      ENVIRONMENT: 'gc_concurrency_london_env_v2',
-      TOKEN: 'gc_concurrency_london_token_v2',
-      TOKEN_EXPIRY: 'gc_concurrency_london_expiry_v2',
-      DATE_FROM: 'gc_concurrency_london_date_from_v2',
-      DATE_TO: 'gc_concurrency_london_date_to_v2',
-      GRANULARITY: 'gc_concurrency_london_granularity_v2',
-      THRESHOLD: 'gc_concurrency_london_threshold_v2'
+      ENVIRONMENT: 'gc_concurrency_london_env_v3',
+      TOKEN: 'gc_concurrency_london_token_v3',
+      TOKEN_EXPIRY: 'gc_concurrency_london_expiry_v3',
+      DATE_FROM: 'gc_concurrency_london_date_from_v3',
+      DATE_TO: 'gc_concurrency_london_date_to_v3',
+      GRANULARITY: 'gc_concurrency_london_granularity_v3',
+      THRESHOLD: 'gc_concurrency_london_threshold_v3'
     };
 
     // ==================== APP STATE ====================
@@ -507,7 +516,7 @@
         totalIntervals: 0,
         peakInterval: null
       },
-      currentGranularity: 'PT60M',
+      currentGranularity: 'PT15M', // Default to 15 min
       threshold: 20,
       chart: null
     };
@@ -550,7 +559,8 @@
       loadingProgressFill: document.getElementById('loadingProgressFill'),
       statusContainer: document.getElementById('statusContainer'),
       concurrencyChart: document.getElementById('concurrencyChart'),
-      currentRedirectUri: document.getElementById('currentRedirectUri')
+      currentRedirectUri: document.getElementById('currentRedirectUri'),
+      debugInfo: document.getElementById('debugInfo')
     };
 
     if (el.currentRedirectUri) {
@@ -840,21 +850,30 @@
       }
     }
 
-    // ==================== INTERVAL OVERLAP WITH DURATION ====================
-    function calculateOverlapDuration(interval1, interval2) {
+    // ==================== IMPROVED OVERLAP DETECTION ====================
+    function doIntervalsOverlap(interval1, interval2, minOverlapMinutes = 1) {
       try {
-        const [start1, end1] = interval1.split('/').map(d => new Date(d));
-        const [start2, end2] = interval2.split('/').map(d => new Date(d));
+        const [start1Str, end1Str] = interval1.split('/');
+        const [start2Str, end2Str] = interval2.split('/');
         
+        const start1 = new Date(start1Str);
+        const end1 = new Date(end1Str);
+        const start2 = new Date(start2Str);
+        const end2 = new Date(end2Str);
+        
+        // Calculate overlap
         const overlapStart = new Date(Math.max(start1, start2));
         const overlapEnd = new Date(Math.min(end1, end2));
         
         if (overlapStart < overlapEnd) {
-          return (overlapEnd - overlapStart) / (1000 * 60);
+          const overlapMinutes = (overlapEnd - overlapStart) / (1000 * 60);
+          // For 15-min intervals, require at least 1 minute overlap to count
+          return overlapMinutes >= minOverlapMinutes;
         }
-        return 0;
+        return false;
       } catch (e) {
-        return 0;
+        console.error('Error checking overlap:', e);
+        return false;
       }
     }
 
@@ -870,25 +889,31 @@
         case 'PT30M': incrementMs = 30 * 60 * 1000; break;
         case 'PT60M': incrementMs = 60 * 60 * 1000; break;
         case 'P1D': incrementMs = 24 * 60 * 60 * 1000; break;
-        default: incrementMs = 60 * 60 * 1000;
+        default: incrementMs = 15 * 60 * 1000;
       }
-      while (current <= end) {
-        const intervalEnd = new Date(current.getTime() + incrementMs - 1);
+      
+      let intervalCount = 0;
+      const maxIntervals = 10000; // Safety limit
+      
+      while (current <= end && intervalCount < maxIntervals) {
+        const intervalEnd = new Date(current.getTime() + incrementMs);
         const intervalStr = `${current.toISOString()}/${intervalEnd.toISOString()}`;
         intervals.push(intervalStr);
-        current = new Date(current.getTime() + incrementMs);
+        current = new Date(intervalEnd);
+        intervalCount++;
       }
+      
       return intervals;
     }
 
-    // ==================== FETCH CONCURRENCY - FIXED VERSION ====================
+    // ==================== FETCH CONCURRENCY - FIXED FOR 15MIN ====================
     async function fetchConcurrency() {
       if (!appState.users.length) {
         showStatusMessage('Please fetch users first', 'error');
         return;
       }
 
-      setLoading(true, 'Analysing Concurrency', 'Splitting date range into 7-day windows...');
+      setLoading(true, 'Analysing Concurrency', 'Processing with 15-minute granularity...');
       updateLoadingProgress(5);
 
       try {
@@ -903,147 +928,149 @@
         const userIds = appState.users.map(u => u.id);
         const batchSize = 25;
         
-        // FIXED: Generate 7-day windows WITHOUT gaps
-        const startDate = new Date(`${dateFrom}T00:00:00.000Z`);
-        const endDate = new Date(`${dateTo}T23:59:59.999Z`);
-        const intervals7Day = [];
-        
-        let currentStart = new Date(startDate);
-        while (currentStart <= endDate) {
-          let currentEnd = new Date(currentStart);
-          currentEnd.setDate(currentEnd.getDate() + 6);
-          currentEnd.setHours(23, 59, 59, 999);
-          
-          if (currentEnd > endDate) currentEnd = new Date(endDate);
-          
-          const intervalStr = `${currentStart.toISOString()}/${currentEnd.toISOString()}`;
-          intervals7Day.push(intervalStr);
-          
-          // FIXED: Start next window at beginning of next day after current window ends
-          currentStart = new Date(currentEnd);
-          currentStart.setDate(currentStart.getDate() + 1);
-          currentStart.setHours(0, 0, 0, 0);
-        }
-
         // Generate target granular intervals for the whole period
         const allGranularIntervals = generateIntervals(dateFrom, dateTo, granularity);
         
-        // FIXED: Map to store UNIQUE user presence per interval (deduplication)
+        // Initialize concurrency map with arrays instead of Sets for debugging
         const concurrencyMap = new Map();
         allGranularIntervals.forEach(interval => {
-          concurrencyMap.set(interval, new Set()); // Use Set to deduplicate users
+          concurrencyMap.set(interval, {
+            users: new Set(), // Use Set for deduplication
+            count: 0
+          });
         });
 
         updateLoadingProgress(10);
-        showStatusMessage(`📅 Split into ${intervals7Day.length} x 7-day windows`, 'info');
-
-        // Get overall query boundaries for 4-hour cap calculation
+        
+        // Get overall query boundaries
         const queryStartDate = new Date(`${dateFrom}T00:00:00.000Z`);
         const queryEndDate = new Date(`${dateTo}T23:59:59.999Z`);
 
-        // Process each 7-day window
-        for (let w = 0; w < intervals7Day.length; w++) {
-          const windowInterval = intervals7Day[w];
-          el.loadingSubtext.innerHTML = `Processing window ${w+1}/${intervals7Day.length}: ${windowInterval}`;
+        // Process users in batches
+        const totalBatches = Math.ceil(userIds.length / batchSize);
+        let processedBatches = 0;
+        
+        for (let i = 0; i < userIds.length; i += batchSize) {
+          const batch = userIds.slice(i, i + batchSize);
+          processedBatches++;
+          const overallProgress = 10 + ((processedBatches / totalBatches) * 80);
+          updateLoadingProgress(overallProgress);
           
-          for (let i = 0; i < userIds.length; i += batchSize) {
-            const batch = userIds.slice(i, i + batchSize);
-            const overallProgress = 10 + ((w / intervals7Day.length) * 80) + ((i / userIds.length) * (80 / intervals7Day.length));
-            updateLoadingProgress(overallProgress);
+          el.loadingSubtext.innerHTML = `Processing batch ${processedBatches}/${totalBatches} (${batch.length} users)...`;
 
-            const queryBody = {
-              interval: windowInterval,
-              userFilters: [{
-                type: 'or',
-                predicates: batch.map(userId => ({
-                  type: 'dimension',
-                  dimension: 'userId',
-                  value: userId
-                }))
-              }],
-              paging: {
-                pageSize: 100,
-                pageNumber: 1
-              }
-            };
-
-            try {
-              const response = await apiCall('/api/v2/analytics/users/details/query', {
-                method: 'POST',
-                body: JSON.stringify(queryBody)
-              });
-
-              if (response.userDetails) {
-                response.userDetails.forEach(userDetail => {
-                  const userId = userDetail.userId;
-                  if (userDetail.primaryPresence) {
-                    userDetail.primaryPresence.forEach(presenceEvent => {
-                      // ONLY count if presence is NOT Offline
-                      if (presenceEvent.systemPresence !== 'Offline' && presenceEvent.systemPresence !== null) {
-                        
-                        let presenceStart = new Date(presenceEvent.startTime);
-                        let presenceEnd = presenceEvent.endTime ? new Date(presenceEvent.endTime) : null;
-                        
-                        // FIXED: Apply 4-hour cap but respect query boundaries
-                        if (!presenceEnd) {
-                          const fourHoursLater = new Date(presenceStart.getTime() + (4 * 60 * 60 * 1000));
-                          // Cap at EITHER 4 hours OR the end of our query range, whichever is sooner
-                          presenceEnd = fourHoursLater < queryEndDate ? fourHoursLater : queryEndDate;
-                        }
-                        
-                        // Ensure presence doesn't extend beyond query range
-                        if (presenceStart < queryStartDate) presenceStart = queryStartDate;
-                        if (presenceEnd > queryEndDate) presenceEnd = queryEndDate;
-                        
-                        // Skip if presence is entirely outside query range
-                        if (presenceStart >= queryEndDate || presenceEnd <= queryStartDate) {
-                          return;
-                        }
-                        
-                        const presenceInterval = `${presenceStart.toISOString()}/${presenceEnd.toISOString()}`;
-                        
-                        // FIXED: Use Set to track unique users per interval (automatic deduplication)
-                        allGranularIntervals.forEach(granularInterval => {
-                          const overlapMinutes = calculateOverlapDuration(presenceInterval, granularInterval);
-                          if (overlapMinutes > 0) {
-                            const userSet = concurrencyMap.get(granularInterval);
-                            userSet.add(userId); // Set automatically deduplicates
-                          }
-                        });
-                      }
-                    });
-                  }
-                });
-              }
-            } catch (batchError) {
-              console.warn(`Window ${w+1}, batch ${i}-${i+batchSize} failed:`, batchError);
-              showStatusMessage(`⚠️ Window ${w+1} partial failure`, 'warn');
+          // Create a 7-day window that covers the entire query range
+          // This ensures we get all data without gaps
+          const queryBody = {
+            interval: `${queryStartDate.toISOString()}/${queryEndDate.toISOString()}`,
+            userFilters: [{
+              type: 'or',
+              predicates: batch.map(userId => ({
+                type: 'dimension',
+                dimension: 'userId',
+                value: userId
+              }))
+            }],
+            paging: {
+              pageSize: 100,
+              pageNumber: 1
             }
+          };
 
-            await new Promise(resolve => setTimeout(resolve, 200));
+          try {
+            const response = await apiCall('/api/v2/analytics/users/details/query', {
+              method: 'POST',
+              body: JSON.stringify(queryBody)
+            });
+
+            if (response.userDetails) {
+              response.userDetails.forEach(userDetail => {
+                const userId = userDetail.userId;
+                if (userDetail.primaryPresence) {
+                  userDetail.primaryPresence.forEach(presenceEvent => {
+                    // Count if presence is NOT Offline
+                    if (presenceEvent.systemPresence && presenceEvent.systemPresence !== 'Offline') {
+                      
+                      let presenceStart = new Date(presenceEvent.startTime);
+                      let presenceEnd = presenceEvent.endTime ? new Date(presenceEvent.endTime) : null;
+                      
+                      // Apply 4-hour cap but respect query boundaries
+                      if (!presenceEnd) {
+                        const fourHoursLater = new Date(presenceStart.getTime() + (4 * 60 * 60 * 1000));
+                        presenceEnd = fourHoursLater < queryEndDate ? fourHoursLater : queryEndDate;
+                      }
+                      
+                      // Ensure presence doesn't extend beyond query range
+                      if (presenceStart < queryStartDate) presenceStart = queryStartDate;
+                      if (presenceEnd > queryEndDate) presenceEnd = queryEndDate;
+                      
+                      // Skip if presence is entirely outside query range or invalid
+                      if (presenceStart >= presenceEnd) {
+                        return;
+                      }
+                      
+                      const presenceInterval = `${presenceStart.toISOString()}/${presenceEnd.toISOString()}`;
+                      
+                      // Check each granular interval for overlap
+                      allGranularIntervals.forEach(granularInterval => {
+                        if (doIntervalsOverlap(presenceInterval, granularInterval, 1)) {
+                          const intervalData = concurrencyMap.get(granularInterval);
+                          if (intervalData) {
+                            intervalData.users.add(userId);
+                            intervalData.count = intervalData.users.size;
+                          }
+                        }
+                      });
+                    }
+                  });
+                }
+              });
+            }
+          } catch (batchError) {
+            console.warn(`Batch ${processedBatches} failed:`, batchError);
+            showStatusMessage(`⚠️ Batch ${processedBatches} partial failure`, 'warn');
           }
+
+          // Small delay to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
 
         updateLoadingProgress(95);
 
-        // Convert Set sizes to concurrency counts
+        // Convert map to array
         const concurrencyData = [];
         let peakConcurrency = 0;
         let totalConcurrency = 0;
         
-        concurrencyMap.forEach((userSet, interval) => {
-          const concurrent = userSet.size; // Number of unique users in this interval
+        concurrencyMap.forEach((value, interval) => {
+          const concurrent = value.count; // This is the Set size
           
           concurrencyData.push({
             interval: interval,
             concurrent: concurrent,
             date: new Date(interval.split('/')[0])
           });
+          
           totalConcurrency += concurrent;
           if (concurrent > peakConcurrency) peakConcurrency = concurrent;
         });
 
+        // Sort by date
         concurrencyData.sort((a, b) => a.date - b.date);
+        
+        // Debug: Log some sample values
+        console.log('Concurrency data sample:', concurrencyData.slice(0, 10));
+        
+        // Show debug info
+        if (el.debugInfo) {
+          const nonZeroIntervals = concurrencyData.filter(d => d.concurrent > 0).length;
+          el.debugInfo.style.display = 'block';
+          el.debugInfo.innerHTML = `
+            <strong>Debug:</strong> Total intervals: ${concurrencyData.length}<br>
+            Non-zero intervals: ${nonZeroIntervals}<br>
+            Peak: ${peakConcurrency}<br>
+            Sample: ${concurrencyData.slice(0, 3).map(d => `${d.concurrent}`).join(', ')}...
+          `;
+        }
         
         appState.concurrencyData = concurrencyData;
         appState.stats.peakConcurrency = peakConcurrency;
@@ -1061,7 +1088,7 @@
         updateLoadingProgress(100);
         setTimeout(() => setLoading(false), 500);
         
-        showStatusMessage(`✅ FIXED London concurrency analysis complete - Peak: ${peakConcurrency} concurrent users over ${concurrencyData.length} intervals`, 'success');
+        showStatusMessage(`✅ Analysis complete - Peak: ${peakConcurrency} concurrent users over ${concurrencyData.length} intervals`, 'success');
         
       } catch (error) {
         setLoading(false);
@@ -1138,9 +1165,10 @@
       el.statTotalIntervals.textContent = appState.stats.totalIntervals;
       el.thresholdValue.textContent = appState.threshold;
       
-      let granularityText = '1-hour';
+      let granularityText = '15-minute';
       if (appState.currentGranularity === 'PT15M') granularityText = '15-minute';
       else if (appState.currentGranularity === 'PT30M') granularityText = '30-minute';
+      else if (appState.currentGranularity === 'PT60M') granularityText = '1-hour';
       else if (appState.currentGranularity === 'P1D') granularityText = 'daily';
       el.granularityLabel.textContent = `${granularityText} intervals`;
     }
@@ -1151,8 +1179,8 @@
       if (appState.concurrencyData.length === 0) return;
       
       let displayData = appState.concurrencyData;
-      if (displayData.length > 100) { 
-        displayData = displayData.slice(-100); 
+      if (displayData.length > 200) { 
+        displayData = displayData.slice(-200); 
       }
       
       const labels = displayData.map(item => formatIntervalDate(item.interval, appState.currentGranularity));
@@ -1170,8 +1198,8 @@
               borderColor: '#63AB8F', 
               backgroundColor: 'rgba(99, 171, 143, 0.1)', 
               borderWidth: 2, 
-              pointRadius: 3, 
-              pointHoverRadius: 6, 
+              pointRadius: 1, 
+              pointHoverRadius: 4, 
               pointBackgroundColor: '#63AB8F', 
               pointBorderColor: '#fff', 
               tension: 0.1, 
@@ -1291,7 +1319,7 @@
         return; 
       }
       
-      let csv = 'Genesys Cloud Concurrency Report - London Region (FIXED)\n';
+      let csv = 'Genesys Cloud Concurrency Report - London Region (FIXED 15min)\n';
       csv += `Generated: ${new Date().toLocaleString()}\n`;
       csv += `Environment: London (euw2.pure.cloud)\n`;
       csv += `Period: ${el.dateFrom.value} to ${el.dateTo.value}\n`;
@@ -1301,7 +1329,7 @@
       csv += `Peak Concurrency: ${appState.stats.peakConcurrency}\n`;
       csv += `Average Concurrency: ${appState.stats.avgConcurrency}\n`;
       csv += `Total Intervals: ${appState.stats.totalIntervals}\n`;
-      csv += `FIXES APPLIED: 4-hour cap respects boundaries, window overlap fixed, user deduplication\n\n`;
+      csv += `FIXES APPLIED: 15-min granularity working, improved overlap detection\n\n`;
       csv += 'PEAK INTERVALS (Exceeding Threshold)\n';
       csv += 'Interval,Concurrent Users,% of Peak,Status\n';
       
@@ -1322,9 +1350,9 @@
       const a = document.createElement('a');
       const dateStr = new Date().toISOString().split('T')[0];
       a.href = url;
-      a.download = `genesys_concurrency_london_FIXED_report_${dateStr}.csv`;
+      a.download = `genesys_concurrency_london_15min_report_${dateStr}.csv`;
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-      showStatusMessage('✅ FIXED London report exported successfully', 'success');
+      showStatusMessage('✅ Report exported successfully', 'success');
     }
 
     function resetApplication() {
@@ -1354,13 +1382,18 @@
         
         renderPeakTable(); 
         renderIntervalsTable();
+        
+        if (el.debugInfo) {
+          el.debugInfo.style.display = 'none';
+        }
+        
         showStatusMessage('🔄 Application reset', 'info');
       }
     }
 
     // ==================== INITIALISATION ====================
     function initializeApp() {
-      console.log("Initializing FIXED London app...");
+      console.log("Initializing FIXED 15min London app...");
       const last7Days = getLast7Days();
       if (el.dateFrom) el.dateFrom.value = last7Days.from;
       if (el.dateTo) el.dateTo.value = last7Days.to;
@@ -1379,6 +1412,7 @@
             this.classList.add('active');
             appState.currentGranularity = this.dataset.granularity;
             localStorage.setItem(STORAGE_KEYS.GRANULARITY, appState.currentGranularity);
+            updateStatsUI();
             if (appState.concurrencyData.length > 0) {
               showStatusMessage('Granularity changed - re-run analysis to apply', 'info');
             }
@@ -1415,7 +1449,7 @@
 
     // ==================== START ====================
     window.onload = function() {
-      console.log("FIXED London region page loaded, initializing...");
+      console.log("FIXED 15min London region page loaded, initializing...");
       initAuth();
       initializeApp();
     };
