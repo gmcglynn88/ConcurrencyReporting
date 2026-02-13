@@ -263,9 +263,9 @@
           <div class="brand-main">
             <h1>📊 Concurrency & Interaction Report</h1>
             <span class="region-badge">🇬🇧 LONDON</span>
-            <span class="badge-aggregate">TWO VIEWS</span>
+            <span class="badge-aggregate">OPTIMIZED</span>
           </div>
-          <div class="subtitle">Genesys Cloud - London Region (apps.euw2.pure.cloud)</div>
+          <div class="subtitle">Genesys Cloud - London Region (apps.euw2.pure.cloud) • Real-time aggregates API</div>
         </div>
       </div>
       <div class="connection-status" id="connectionStatus">
@@ -321,7 +321,7 @@
             <div class="card">
               <h2>🚀 Actions</h2>
               <button id="btnFetchUsers" class="btn-block" style="margin-bottom:16px;" disabled>
-                👥 1. Fetch Users
+                👥 1. Fetch Users (for reference)
               </button>
               <button id="btnFetchConcurrency" class="btn-success btn-block" style="margin-bottom:16px;" disabled>
                 📊 2. Analyse Concurrency
@@ -347,8 +347,9 @@
                   <strong>Metrics:</strong> tSystemPresence<br>
                   <strong>Granularity:</strong> PT15M<br>
                   <strong>Group By:</strong> userId<br>
-                  <strong>Concurrent:</strong> Count of users with any non-Offline presence<br>
-                  <strong>Interaction Hours:</strong> Sum of Interacting + Communicating time
+                  <strong>Filter:</strong> None (all logged-in users)<br>
+                  <strong>Concurrent Logic:</strong> Count users with sum > 0 in non-Offline states<br>
+                  <strong>Interaction Hours:</strong> Sum of Interacting + Communicating time only
                 </div>
               </div>
 
@@ -357,9 +358,10 @@
                   <span style="background:var(--success);color:white;padding:2px 12px;border-radius:20px;font-size:12px;">✅ TWO VIEWS</span>
                 </div>
                 <ul style="list-style-type:none;padding-left:0;">
-                  <li style="margin-bottom:8px;">✅ View 1: Count of concurrent users per interval (any non-Offline)</li>
-                  <li style="margin-bottom:8px;">✅ View 2: Total interaction hours per interval (Interacting + Communicating only)</li>
-                  <li style="margin-bottom:8px;">✅ Both calculated from PT15M aggregates data</li>
+                  <li style="margin-bottom:8px;">✅ <strong>View 1 (Concurrency):</strong> Count of users with actual logged-in time (non-Offline, sum > 0)</li>
+                  <li style="margin-bottom:8px;">✅ <strong>View 2 (Interaction):</strong> Total hours in Interacting + Communicating states only</li>
+                  <li style="margin-bottom:8px;">✅ Data pulled directly from aggregates API at PT15M granularity</li>
+                  <li style="margin-bottom:8px;">✅ No user filtering - API returns all users with presence data</li>
                 </ul>
               </div>
               
@@ -894,7 +896,7 @@
         appState.users = allUsers;
         appState.stats.totalUsers = allUsers.length;
         if (el.statTotalUsers) el.statTotalUsers.textContent = allUsers.length;
-        showStatusMessage(`✅ Fetched ${allUsers.length} active users from London`, 'success');
+        showStatusMessage(`✅ Fetched ${allUsers.length} active users from London (for reference - concurrency uses actual logged-in users)`, 'success');
         if (el.btnFetchConcurrency) el.btnFetchConcurrency.disabled = false;
         updateLoadingProgress(100);
         setTimeout(() => setLoading(false), 500);
@@ -927,28 +929,36 @@
           
           const intervalData = intervalMap.get(intervalStr);
           
+          // Track if user was actually logged in (had non-Offline time > 0)
+          let hasLoggedInTime = false;
+          
           // Process each metric
           interval.metrics?.forEach(metric => {
             if (metric.metric === 'tSystemPresence') {
               const qualifier = metric.qualifier;
               const sum = metric.stats?.sum || 0;
               
-              // User is logged in if they have any non-Offline presence
-              if (qualifier !== 'Offline') {
-                intervalData.users.add(userId);
+              // Check if user had any actual non-Offline time (not just a zero-value metric)
+              if (qualifier !== 'Offline' && sum > 0) {
+                hasLoggedInTime = true;
               }
               
               // Only count INTERACTING and COMMUNICATING time as interaction hours
-              if (qualifier === 'Interacting' || qualifier === 'Communicating') {
+              if ((qualifier === 'Interacting' || qualifier === 'Communicating') && sum > 0) {
                 intervalData.totalInteractionTime += sum;
               }
             }
           });
+          
+          // Only add user to concurrent count if they had actual logged-in time
+          if (hasLoggedInTime) {
+            intervalData.users.add(userId);
+          }
         });
       });
     }
 
-    // ==================== FETCH CONCURRENCY USING AGGREGATES API ====================
+    // ==================== FETCH CONCURRENCY USING AGGREGATES API (OPTIMIZED) ====================
     async function fetchConcurrency() {
       if (!appState.users.length) {
         showStatusMessage('Please fetch users first', 'error');
@@ -966,9 +976,6 @@
           throw new Error('Please select a date range');
         }
 
-        const userIds = appState.users.map(u => u.id);
-        const batchSize = 50; // Users per API call
-        
         // Split into 7-day windows (API limit)
         const startDate = new Date(`${dateFrom}T00:00:00.000Z`);
         const endDate = new Date(`${dateTo}T23:59:59.999Z`);
@@ -1002,56 +1009,39 @@
           const windowInterval = `${window.start.toISOString()}/${window.end.toISOString()}`;
           
           if (el.loadingSubtext) {
-            el.loadingSubtext.innerHTML = `Processing window ${windowIdx + 1}/${windows.length}...`;
+            el.loadingSubtext.innerHTML = `Processing window ${windowIdx + 1}/${windows.length}...<br>Querying all users who were logged in during this period`;
           }
           
-          // Process users in batches
-          for (let i = 0; i < userIds.length; i += batchSize) {
-            const batch = userIds.slice(i, i + batchSize);
-            totalApiCalls++;
-            
-            const overallProgress = 5 + ((windowIdx / windows.length) * 90) + ((i / userIds.length) * (90 / windows.length));
-            updateLoadingProgress(overallProgress);
+          totalApiCalls++;
+          
+          const overallProgress = 5 + ((windowIdx / windows.length) * 90);
+          updateLoadingProgress(overallProgress);
 
-            // Create predicates for this batch
-            const predicates = batch.map(userId => ({
-              type: 'dimension',
-              dimension: 'userId',
-              operator: 'matches',
-              value: userId
-            }));
+          // Query ALL users who had presence during this window
+          // No userId filter - let API return only users with actual presence data
+          const queryBody = {
+            interval: windowInterval,
+            granularity: 'PT15M',
+            groupBy: ['userId'],
+            metrics: ['tSystemPresence']
+            // No filter clause - get all users who had any presence activity
+          };
 
-            // Construct the aggregates query
-            const queryBody = {
-              interval: windowInterval,
-              granularity: 'PT15M',
-              groupBy: ['userId'],
-              metrics: ['tSystemPresence'],
-              filter: {
-                type: 'and',
-                clauses: [{
-                  type: 'or',
-                  predicates: predicates
-                }]
-              }
-            };
+          try {
+            const response = await apiCall('/api/v2/analytics/users/aggregates/query', {
+              method: 'POST',
+              body: JSON.stringify(queryBody)
+            });
 
-            try {
-              const response = await apiCall('/api/v2/analytics/users/aggregates/query', {
-                method: 'POST',
-                body: JSON.stringify(queryBody)
-              });
+            processAggregatesResponse(response, intervalMap);
 
-              processAggregatesResponse(response, intervalMap);
-
-            } catch (batchError) {
-              console.warn(`Window ${windowIdx + 1}, batch failed:`, batchError);
-              showStatusMessage(`⚠️ Batch ${Math.floor(i/batchSize) + 1} failed`, 'warn');
-            }
-
-            // Small delay to avoid rate limiting
-            await new Promise(resolve => setTimeout(resolve, 100));
+          } catch (windowError) {
+            console.warn(`Window ${windowIdx + 1} failed:`, windowError);
+            showStatusMessage(`⚠️ Window ${windowIdx + 1} failed: ${windowError.message}`, 'warn');
           }
+
+          // Small delay to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 300));
         }
 
         updateLoadingProgress(95);
@@ -1064,12 +1054,12 @@
         intervalMap.forEach((data, interval) => {
           const concurrent = data.users.size;
           maxConcurrency = Math.max(maxConcurrency, concurrent);
-          totalInteractionTimeMs += data.totalInteractionTime; // <-- FIX: use interaction time
+          totalInteractionTimeMs += data.totalInteractionTime;
           
           intervalData.push({
             interval: interval,
             concurrent: concurrent,
-            interactionTimeMs: data.totalInteractionTime, // <-- FIX: store only interacting+communicating time
+            interactionTimeMs: data.totalInteractionTime,
             interactionHours: data.totalInteractionTime / (60 * 60 * 1000),
             date: data.date
           });
@@ -1089,13 +1079,19 @@
         
         // Update debug info
         if (el.debugInfo) {
-          const sampleData = intervalData.slice(0, 5).map(d => `${d.concurrent} (${formatHours(d.interactionTimeMs)})`).join(', ');
+          const uniqueUsers = new Set();
+          intervalMap.forEach(data => {
+            data.users.forEach(userId => uniqueUsers.add(userId));
+          });
+          
+          const sampleData = intervalData.slice(0, 5).map(d => `${d.concurrent} users (${formatHours(d.interactionTimeMs)})`).join(', ');
           el.debugInfo.innerHTML = `
             <strong>Aggregates API Results:</strong><br>
             API calls made: ${totalApiCalls}<br>
             15min intervals found: ${intervalData.length}<br>
+            Unique users logged in: ${uniqueUsers.size}<br>
             Max concurrency: ${maxConcurrency}<br>
-            Total interaction: ${formatHours(totalInteractionTimeMs)}<br>
+            Total interaction time: ${formatHours(totalInteractionTimeMs)}<br>
             <br><strong>${appState.currentGranularity} Data:</strong><br>
             Intervals: ${appState.aggregatedData.length}<br>
             Peak: ${appState.stats.peakConcurrency}<br>
@@ -1113,7 +1109,7 @@
         updateLoadingProgress(100);
         setTimeout(() => setLoading(false), 500);
         
-        showStatusMessage(`✅ Analysis complete - Found ${intervalData.length} intervals`, 'success');
+        showStatusMessage(`✅ Analysis complete - Found ${intervalData.length} intervals with max ${maxConcurrency} concurrent users`, 'success');
         
       } catch (error) {
         setLoading(false);
@@ -1530,9 +1526,9 @@
       csv += `Granularity: ${appState.currentGranularity}\n`;
       csv += `Alert Threshold: ${appState.threshold} concurrent users\n`;
       csv += `Total Users Analysed: ${appState.stats.totalUsers}\n`;
-      csv += `Peak Concurrency: ${appState.stats.peakConcurrency}\n`;
-      csv += `Average Concurrency: ${appState.stats.avgConcurrency}\n`;
-      csv += `Total Interaction Hours: ${appState.stats.totalInteractionHours}\n`;
+      csv += `Peak Concurrency: ${appState.stats.peakConcurrency} (users with logged-in time)\n`;
+      csv += `Average Concurrency: ${appState.stats.avgConcurrency} (users with logged-in time)\n`;
+      csv += `Total Interaction Hours: ${appState.stats.totalInteractionHours} (Interacting + Communicating only)\n`;
       csv += `Total Intervals: ${appState.stats.totalIntervals}\n`;
       csv += `\n`;
       csv += 'ALL INTERVALS\n';
