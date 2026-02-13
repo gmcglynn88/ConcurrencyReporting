@@ -347,7 +347,7 @@
                   <strong>Metrics:</strong> tSystemPresence<br>
                   <strong>Granularity:</strong> PT15M<br>
                   <strong>Group By:</strong> userId<br>
-                  <strong>Filter:</strong> None (all logged-in users)<br>
+                  <strong>Filter:</strong> userId exists (all logged-in users)<br>
                   <strong>Concurrent Logic:</strong> Count users with sum > 0 in non-Offline states<br>
                   <strong>Interaction Hours:</strong> Sum of Interacting + Communicating time only
                 </div>
@@ -361,7 +361,7 @@
                   <li style="margin-bottom:8px;">✅ <strong>View 1 (Concurrency):</strong> Count of users with actual logged-in time (non-Offline, sum > 0)</li>
                   <li style="margin-bottom:8px;">✅ <strong>View 2 (Interaction):</strong> Total hours in Interacting + Communicating states only</li>
                   <li style="margin-bottom:8px;">✅ Data pulled directly from aggregates API at PT15M granularity</li>
-                  <li style="margin-bottom:8px;">✅ No user filtering - API returns all users with presence data</li>
+                  <li style="margin-bottom:8px;">✅ Filter uses "userId exists" - returns all users with presence data</li>
                 </ul>
               </div>
               
@@ -958,7 +958,7 @@
       });
     }
 
-    // ==================== FETCH CONCURRENCY USING AGGREGATES API (OPTIMIZED) ====================
+    // ==================== FETCH CONCURRENCY USING AGGREGATES API (OPTIMIZED - FIXED) ====================
     async function fetchConcurrency() {
       if (!appState.users.length) {
         showStatusMessage('Please fetch users first', 'error');
@@ -1009,7 +1009,7 @@
           const windowInterval = `${window.start.toISOString()}/${window.end.toISOString()}`;
           
           if (el.loadingSubtext) {
-            el.loadingSubtext.innerHTML = `Processing window ${windowIdx + 1}/${windows.length}...<br>Querying all users who were logged in during this period`;
+            el.loadingSubtext.innerHTML = `Processing window ${windowIdx + 1}/${windows.length}...<br>Querying all users with presence data`;
           }
           
           totalApiCalls++;
@@ -1017,14 +1017,25 @@
           const overallProgress = 5 + ((windowIdx / windows.length) * 90);
           updateLoadingProgress(overallProgress);
 
-          // Query ALL users who had presence during this window
-          // No userId filter - let API return only users with actual presence data
+          // Create a filter that matches all users who had any presence data
+          // Using a wildcard predicate to get all users with presence records
           const queryBody = {
             interval: windowInterval,
             granularity: 'PT15M',
             groupBy: ['userId'],
-            metrics: ['tSystemPresence']
-            // No filter clause - get all users who had any presence activity
+            metrics: ['tSystemPresence'],
+            filter: {
+              type: 'and',
+              clauses: [{
+                type: 'or',
+                predicates: [{
+                  type: 'dimension',
+                  dimension: 'userId',
+                  operator: 'exists',
+                  value: null
+                }]
+              }]
+            }
           };
 
           try {
@@ -1038,6 +1049,61 @@
           } catch (windowError) {
             console.warn(`Window ${windowIdx + 1} failed:`, windowError);
             showStatusMessage(`⚠️ Window ${windowIdx + 1} failed: ${windowError.message}`, 'warn');
+            
+            // Try alternative approach - use a predicate that matches all users from our list
+            // This is more reliable but may miss users who logged in but aren't in our fetched list
+            if (appState.users.length > 0) {
+              showStatusMessage(`⚠️ Trying alternative approach with user list...`, 'warn');
+              
+              // Process users in larger batches (200 per batch) to reduce API calls
+              const batchSize = 200;
+              const userIds = appState.users.map(u => u.id);
+              
+              for (let i = 0; i < userIds.length; i += batchSize) {
+                const batch = userIds.slice(i, i + batchSize);
+                
+                // Create predicates for this batch
+                const predicates = batch.map(userId => ({
+                  type: 'dimension',
+                  dimension: 'userId',
+                  operator: 'matches',
+                  value: userId
+                }));
+
+                const batchQueryBody = {
+                  interval: windowInterval,
+                  granularity: 'PT15M',
+                  groupBy: ['userId'],
+                  metrics: ['tSystemPresence'],
+                  filter: {
+                    type: 'and',
+                    clauses: [{
+                      type: 'or',
+                      predicates: predicates
+                    }]
+                  }
+                };
+
+                try {
+                  const batchResponse = await apiCall('/api/v2/analytics/users/aggregates/query', {
+                    method: 'POST',
+                    body: JSON.stringify(batchQueryBody)
+                  });
+
+                  processAggregatesResponse(batchResponse, intervalMap);
+                  
+                  // Update progress within the alternative approach
+                  const altProgress = overallProgress + ((i / userIds.length) * 5);
+                  updateLoadingProgress(altProgress);
+
+                } catch (batchError) {
+                  console.warn(`Batch ${Math.floor(i/batchSize) + 1} failed:`, batchError);
+                }
+
+                // Small delay to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 200));
+              }
+            }
           }
 
           // Small delay to avoid rate limiting
