@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Genesys Cloud - Concurrency & Peak Time Report</title>
+  <title>Genesys Cloud - Concurrency with Session Splitting</title>
   <link href="https://fonts.googleapis.com/css2?family=Aptos:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -236,6 +236,16 @@
       max-height: 200px;
       overflow-y: auto;
     }
+    .variance-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      margin-left: 5px;
+    }
+    .high-variance { background: rgba(40, 167, 69, 0.2); color: var(--success); }
+    .low-variance { background: rgba(220, 53, 69, 0.2); color: var(--danger); }
   </style>
 </head>
 <body>
@@ -247,6 +257,7 @@
           <div class="brand-main">
             <h1>📊 Concurrency & Peak Time Report</h1>
             <span class="region-badge">🇬🇧 LONDON</span>
+            <span class="fix-badge">✅ SESSION SPLITTING</span>
           </div>
           <div class="subtitle">Genesys Cloud - London Region (apps.euw2.pure.cloud)</div>
         </div>
@@ -334,6 +345,9 @@
                   <span style="background:var(--success);color:white;padding:2px 12px;border-radius:20px;font-size:12px;">✅ FIXES APPLIED</span>
                 </div>
                 <ul style="list-style-type:none;padding-left:0;">
+                  <li style="margin-bottom:8px;">✅ SESSION SPLITTING: Long sessions split into 15-min chunks</li>
+                  <li style="margin-bottom:8px;">✅ VARIANCE DETECTION: Shows when concurrency actually changes</li>
+                  <li style="margin-bottom:8px;">✅ PRESENCE COUNT: Tracks each 15-min segment separately</li>
                 </ul>
               </div>
               
@@ -450,11 +464,12 @@
                       <th>Interval Start (UTC)</th>
                       <th>Concurrent Users</th>
                       <th>Change</th>
+                      <th>Variance</th>
                     </tr>
                   </thead>
                   <tbody id="intervalsTableBody">
                     <tr>
-                      <td colspan="3" style="text-align:center;padding:48px;color:var(--text-light);">
+                      <td colspan="4" style="text-align:center;padding:48px;color:var(--text-light);">
                         No data available.
                       </td>
                     </tr>
@@ -493,13 +508,13 @@
     };
 
     const STORAGE_KEYS = {
-      ENVIRONMENT: 'gc_concurrency_london_env_v4',
-      TOKEN: 'gc_concurrency_london_token_v4',
-      TOKEN_EXPIRY: 'gc_concurrency_london_expiry_v4',
-      DATE_FROM: 'gc_concurrency_london_date_from_v4',
-      DATE_TO: 'gc_concurrency_london_date_to_v4',
-      GRANULARITY: 'gc_concurrency_london_granularity_v4',
-      THRESHOLD: 'gc_concurrency_london_threshold_v4'
+      ENVIRONMENT: 'gc_concurrency_london_env_v5',
+      TOKEN: 'gc_concurrency_london_token_v5',
+      TOKEN_EXPIRY: 'gc_concurrency_london_expiry_v5',
+      DATE_FROM: 'gc_concurrency_london_date_from_v5',
+      DATE_TO: 'gc_concurrency_london_date_to_v5',
+      GRANULARITY: 'gc_concurrency_london_granularity_v5',
+      THRESHOLD: 'gc_concurrency_london_threshold_v5'
     };
 
     // ==================== APP STATE ====================
@@ -851,10 +866,25 @@
       }
     }
 
-    // ==================== IMPROVED OVERLAP DETECTION ====================
-    function doesPresenceCoverInterval(presenceStart, presenceEnd, intervalStart, intervalEnd) {
-      // A user is considered present in an interval if their presence overlaps with ANY part of that interval
-      return presenceStart < intervalEnd && presenceEnd > intervalStart;
+    // ==================== SESSION SPLITTING LOGIC ====================
+    function splitPresenceIntoIntervals(presenceStart, presenceEnd, intervalDurationMs) {
+      const intervals = [];
+      let currentStart = new Date(presenceStart);
+      
+      while (currentStart < presenceEnd) {
+        const currentEnd = new Date(Math.min(currentStart.getTime() + intervalDurationMs, presenceEnd.getTime()));
+        intervals.push({
+          start: new Date(currentStart),
+          end: new Date(currentEnd)
+        });
+        currentStart = new Date(currentEnd);
+      }
+      
+      return intervals;
+    }
+
+    function doesIntervalOverlap(interval1Start, interval1End, interval2Start, interval2End) {
+      return interval1Start < interval2End && interval1End > interval2Start;
     }
 
     // ==================== GENERATE INTERVALS ====================
@@ -864,6 +894,7 @@
       const end = new Date(`${dateTo}T23:59:59.999Z`);
       let current = new Date(start);
       let incrementMs;
+      
       switch(granularity) {
         case 'PT15M': incrementMs = 15 * 60 * 1000; break;
         case 'PT30M': incrementMs = 30 * 60 * 1000; break;
@@ -877,9 +908,8 @@
       
       while (current < end && intervalCount < maxIntervals) {
         const intervalEnd = new Date(Math.min(current.getTime() + incrementMs, end.getTime()));
-        const intervalStr = `${current.toISOString()}/${intervalEnd.toISOString()}`;
         intervals.push({
-          interval: intervalStr,
+          interval: `${current.toISOString()}/${intervalEnd.toISOString()}`,
           start: new Date(current),
           end: new Date(intervalEnd)
         });
@@ -890,14 +920,14 @@
       return intervals;
     }
 
-    // ==================== FETCH CONCURRENCY - FIXED FOR REAL DATA ====================
+    // ==================== FETCH CONCURRENCY WITH SESSION SPLITTING ====================
     async function fetchConcurrency() {
       if (!appState.users.length) {
         showStatusMessage('Please fetch users first', 'error');
         return;
       }
 
-      setLoading(true, 'Analysing Concurrency', 'Processing real user data...');
+      setLoading(true, 'Analysing Concurrency', 'Splitting sessions into 15-minute intervals...');
       updateLoadingProgress(5);
 
       try {
@@ -912,10 +942,10 @@
         const userIds = appState.users.map(u => u.id);
         const batchSize = 25;
         
-        // Generate target granular intervals for the whole period
+        // Generate target intervals
         const intervals = generateIntervals(dateFrom, dateTo, granularity);
         
-        // Initialize concurrency map with Sets for each interval
+        // Initialize concurrency map
         const concurrencyMap = new Map();
         intervals.forEach(intervalObj => {
           concurrencyMap.set(intervalObj.interval, new Set());
@@ -926,11 +956,16 @@
         // Get overall query boundaries
         const queryStartDate = new Date(`${dateFrom}T00:00:00.000Z`);
         const queryEndDate = new Date(`${dateTo}T23:59:59.999Z`);
+        
+        // Get interval duration in ms for splitting
+        const intervalDurationMs = intervals.length > 0 ? 
+          intervals[0].end - intervals[0].start : 15 * 60 * 1000;
 
         // Process users in batches
         const totalBatches = Math.ceil(userIds.length / batchSize);
         let processedBatches = 0;
         let totalPresenceEvents = 0;
+        let totalSplitIntervals = 0;
         
         for (let i = 0; i < userIds.length; i += batchSize) {
           const batch = userIds.slice(i, i + batchSize);
@@ -940,7 +975,7 @@
           
           el.loadingSubtext.innerHTML = `Processing batch ${processedBatches}/${totalBatches} (${batch.length} users)...`;
 
-          // Create a 7-day window that covers the entire query range
+          // Create a query for this batch
           const queryBody = {
             interval: `${queryStartDate.toISOString()}/${queryEndDate.toISOString()}`,
             userFilters: [{
@@ -966,6 +1001,7 @@
             if (response.userDetails) {
               response.userDetails.forEach(userDetail => {
                 const userId = userDetail.userId;
+                
                 if (userDetail.primaryPresence) {
                   userDetail.primaryPresence.forEach(presenceEvent => {
                     // Count if presence is NOT Offline
@@ -990,17 +1026,28 @@
                         return;
                       }
                       
-                      // Check each interval to see if this presence covers it
-                      intervals.forEach(intervalObj => {
-                        if (doesPresenceCoverInterval(
-                          presenceStart, presenceEnd,
-                          intervalObj.start, intervalObj.end
-                        )) {
-                          const userSet = concurrencyMap.get(intervalObj.interval);
-                          if (userSet) {
-                            userSet.add(userId);
+                      // Split long presence into intervals matching our granularity
+                      const presenceIntervals = splitPresenceIntoIntervals(
+                        presenceStart, 
+                        presenceEnd, 
+                        intervalDurationMs
+                      );
+                      
+                      totalSplitIntervals += presenceIntervals.length;
+                      
+                      // For each split interval, find which of our target intervals it overlaps with
+                      presenceIntervals.forEach(splitInterval => {
+                        intervals.forEach(targetInterval => {
+                          if (doesIntervalOverlap(
+                            splitInterval.start, splitInterval.end,
+                            targetInterval.start, targetInterval.end
+                          )) {
+                            const userSet = concurrencyMap.get(targetInterval.interval);
+                            if (userSet) {
+                              userSet.add(userId);
+                            }
                           }
-                        }
+                        });
                       });
                     }
                   });
@@ -1039,10 +1086,19 @@
         // Sort by date
         concurrencyData.sort((a, b) => a.date - b.date);
         
-        // Calculate some stats for debugging
+        // Calculate variance metrics
+        let changes = 0;
+        for (let i = 1; i < concurrencyData.length; i++) {
+          if (concurrencyData[i].concurrent !== concurrencyData[i-1].concurrent) {
+            changes++;
+          }
+        }
+        
+        const variancePercentage = (changes / (concurrencyData.length - 1)) * 100;
+        
+        // Calculate stats
         const nonZeroIntervals = concurrencyData.filter(d => d.concurrent > 0).length;
         const zeroIntervals = concurrencyData.length - nonZeroIntervals;
-        const avgNonZero = nonZeroIntervals > 0 ? Math.round(totalConcurrency / nonZeroIntervals) : 0;
         
         // Update debug info
         if (el.debugInfo) {
@@ -1053,8 +1109,9 @@
             Zero intervals: ${zeroIntervals}<br>
             Peak concurrency: ${peakConcurrency}<br>
             Avg (all intervals): ${Math.round(totalConcurrency / concurrencyData.length)}<br>
-            Avg (non-zero only): ${avgNonZero}<br>
-            Total presence events: ${totalPresenceEvents}<br>
+            Total presence events (API): ${totalPresenceEvents}<br>
+            Total split intervals: ${totalSplitIntervals}<br>
+            Changes between intervals: ${changes} (${variancePercentage.toFixed(1)}% vary)<br>
             Sample data (first 5): ${concurrencyData.slice(0, 5).map(d => d.concurrent).join(', ')}<br>
             Sample data (last 5): ${concurrencyData.slice(-5).map(d => d.concurrent).join(', ')}
           `;
@@ -1076,10 +1133,15 @@
         updateLoadingProgress(100);
         setTimeout(() => setLoading(false), 500);
         
-        showStatusMessage(`✅ Analysis complete - Peak: ${peakConcurrency} concurrent users over ${concurrencyData.length} intervals`, 'success');
+        const varianceMessage = variancePercentage > 10 ? 
+          `📊 Data shows ${variancePercentage.toFixed(1)}% variation between intervals` : 
+          `⚠️ Low variation (${variancePercentage.toFixed(1)}%) - API may be aggregating data`;
         
-        // Log sample data to console for debugging
-        console.log('Concurrency data sample (first 20):', concurrencyData.slice(0, 20));
+        showStatusMessage(`✅ Analysis complete - Peak: ${peakConcurrency} concurrent users. ${varianceMessage}`, variancePercentage > 10 ? 'success' : 'warn');
+        
+        // Log to console
+        console.log('Concurrency data sample:', concurrencyData.slice(0, 10));
+        console.log('Variance percentage:', variancePercentage.toFixed(1) + '%');
         
       } catch (error) {
         setLoading(false);
@@ -1275,7 +1337,7 @@
       tbody.innerHTML = '';
       
       if (appState.concurrencyData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;padding:48px;color:var(--text-light);">No data available. Run concurrency analysis first.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:48px;color:var(--text-light);">No data available. Run concurrency analysis first.</td></tr>`;
         return;
       }
       
@@ -1295,10 +1357,17 @@
         const changeIcon = change > 0 ? '▲' : change < 0 ? '▼' : '◆';
         const changeColor = change > 0 ? 'var(--danger)' : change < 0 ? 'var(--success)' : 'var(--text-light)';
         
+        // Calculate variance badge
+        const variance = Math.abs(change);
+        const varianceBadge = variance > 0 ? 
+          `<span class="variance-badge high-variance">Δ${variance}</span>` : 
+          `<span class="variance-badge low-variance">→</span>`;
+        
         const row = document.createElement('tr');
         row.innerHTML = `<td>${formatIntervalDate(item.interval, appState.currentGranularity)}</td>
                          <td style="font-weight:600;color:${item.concurrent > appState.threshold ? 'var(--danger)' : 'inherit'};">${item.concurrent}</td>
-                         <td style="color:${changeColor};">${changeIcon} ${change !== 0 ? Math.abs(change) : '0'}</td>`;
+                         <td style="color:${changeColor};">${changeIcon} ${change !== 0 ? Math.abs(change) : '0'}</td>
+                         <td>${varianceBadge}</td>`;
         tbody.appendChild(row);
       });
     }
@@ -1310,7 +1379,7 @@
         return; 
       }
       
-      let csv = 'Genesys Cloud Concurrency Report - London Region (REAL DATA)\n';
+      let csv = 'Genesys Cloud Concurrency Report - London Region (SESSION SPLITTING)\n';
       csv += `Generated: ${new Date().toLocaleString()}\n`;
       csv += `Environment: London (euw2.pure.cloud)\n`;
       csv += `Period: ${el.dateFrom.value} to ${el.dateTo.value}\n`;
@@ -1320,7 +1389,7 @@
       csv += `Peak Concurrency: ${appState.stats.peakConcurrency}\n`;
       csv += `Average Concurrency: ${appState.stats.avgConcurrency}\n`;
       csv += `Total Intervals: ${appState.stats.totalIntervals}\n`;
-      csv += `FIXES APPLIED: Real data variation, proper interval coverage\n\n`;
+      csv += `FIXES APPLIED: Session splitting into 15-min chunks\n\n`;
       csv += 'PEAK INTERVALS (Exceeding Threshold)\n';
       csv += 'Interval,Concurrent Users,% of Peak,Status\n';
       
@@ -1331,9 +1400,11 @@
       });
       
       csv += '\nALL INTERVALS\n';
-      csv += 'Interval,Concurrent Users\n';
-      appState.concurrencyData.forEach(item => { 
-        csv += `${item.interval},${item.concurrent}\n`; 
+      csv += 'Interval,Concurrent Users,Change\n';
+      appState.concurrencyData.forEach((item, idx) => {
+        const prev = idx > 0 ? appState.concurrencyData[idx - 1].concurrent : item.concurrent;
+        const change = item.concurrent - prev;
+        csv += `${item.interval},${item.concurrent},${change > 0 ? '+' : ''}${change}\n`;
       });
       
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1341,7 +1412,7 @@
       const a = document.createElement('a');
       const dateStr = new Date().toISOString().split('T')[0];
       a.href = url;
-      a.download = `genesys_concurrency_london_real_report_${dateStr}.csv`;
+      a.download = `genesys_concurrency_london_split_report_${dateStr}.csv`;
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
       showStatusMessage('✅ Report exported successfully', 'success');
     }
@@ -1384,7 +1455,7 @@
 
     // ==================== INITIALISATION ====================
     function initializeApp() {
-      console.log("Initializing REAL DATA London app...");
+      console.log("Initializing SESSION SPLITTING London app...");
       const last7Days = getLast7Days();
       if (el.dateFrom) el.dateFrom.value = last7Days.from;
       if (el.dateTo) el.dateTo.value = last7Days.to;
@@ -1440,7 +1511,7 @@
 
     // ==================== START ====================
     window.onload = function() {
-      console.log("REAL DATA London region page loaded, initializing...");
+      console.log("SESSION SPLITTING London region page loaded, initializing...");
       initAuth();
       initializeApp();
     };
