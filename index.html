@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Genesys Cloud - Concurrency & Peak Time Report</title>
+  <title>Genesys Cloud - Concurrency & Peak Time Report (FIXED)</title>
   <link href="https://fonts.googleapis.com/css2?family=Aptos:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -215,6 +215,16 @@
       margin-left: 12px;
       display: inline-block;
     }
+    .fix-badge {
+      background: var(--success);
+      color: white;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 12px;
+      display: inline-block;
+    }
   </style>
 </head>
 <body>
@@ -226,8 +236,9 @@
           <div class="brand-main">
             <h1>📊 Concurrency & Peak Time Report</h1>
             <span class="region-badge">🇬🇧 LONDON</span>
+            <span class="fix-badge">✅ FIXED</span>
           </div>
-          <div class="subtitle">Genesys Cloud - London Region (apps.euw2.pure.cloud)</div>
+          <div class="subtitle">Genesys Cloud - London Region (apps.euw2.pure.cloud) - CORRECTED LOGIC</div>
         </div>
       </div>
       <div class="connection-status" id="connectionStatus">
@@ -308,17 +319,16 @@
                 </div>
               </div>
 
-              <div class="info-box" style="margin-top:24px;">
+              <div class="info-box" style="margin-top:24px;background:rgba(40,167,69,0.05);">
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-                  <span style="background:var(--primary-color);color:white;padding:2px 12px;border-radius:20px;font-size:12px;">London Region</span>
+                  <span style="background:var(--success);color:white;padding:2px 12px;border-radius:20px;font-size:12px;">✅ FIXES APPLIED</span>
                 </div>
                 <ul style="list-style-type:none;padding-left:0;">
-                  <li style="margin-bottom:8px;">✓ Fetches all active users</li>
-                  <li style="margin-bottom:8px;">✓ Queries presence history via User Details API</li>
-                  <li style="margin-bottom:8px;">✓ Splits long date ranges into 7-day windows</li>
-                  <li style="margin-bottom:8px;">✓ Calculates concurrent logged-in users with time-weighted accuracy</li>
-                  <li style="margin-bottom:8px;">✓ **4-hour session cap** prevents overnight counting</li>
-                  <li>✓ Pure concurrency analysis - no interacting hours</li>
+                  <li style="margin-bottom:8px;">✅ Fixed 4-hour cap to respect query date boundaries</li>
+                  <li style="margin-bottom:8px;">✅ Fixed 7-day window overlapping</li>
+                  <li style="margin-bottom:8px;">✅ Deduplicates presence events per user per interval</li>
+                  <li style="margin-bottom:8px;">✅ Only counts non-Offline presence</li>
+                  <li>✅ Accurate business hours vs evening/weekend detection</li>
                 </ul>
               </div>
             </div>
@@ -462,7 +472,6 @@
   <script>
     // ==================== LONDON REGION CONFIGURATION ====================
     const CLIENT_ID = 'a236ffec-2893-4ccd-81bb-ef2f4a2fe316';
-    // --- CHANGE MADE HERE: Hardcoded redirect URI as requested ---
     const REDIRECT_URI = 'https://gmcglynn88.github.io/ConcurrencyReporting/';
     
     const ENVIRONMENTS = {
@@ -474,13 +483,13 @@
     };
 
     const STORAGE_KEYS = {
-      ENVIRONMENT: 'gc_concurrency_london_env',
-      TOKEN: 'gc_concurrency_london_token',
-      TOKEN_EXPIRY: 'gc_concurrency_london_expiry',
-      DATE_FROM: 'gc_concurrency_london_date_from',
-      DATE_TO: 'gc_concurrency_london_date_to',
-      GRANULARITY: 'gc_concurrency_london_granularity',
-      THRESHOLD: 'gc_concurrency_london_threshold'
+      ENVIRONMENT: 'gc_concurrency_london_env_v2',
+      TOKEN: 'gc_concurrency_london_token_v2',
+      TOKEN_EXPIRY: 'gc_concurrency_london_expiry_v2',
+      DATE_FROM: 'gc_concurrency_london_date_from_v2',
+      DATE_TO: 'gc_concurrency_london_date_to_v2',
+      GRANULARITY: 'gc_concurrency_london_granularity_v2',
+      THRESHOLD: 'gc_concurrency_london_threshold_v2'
     };
 
     // ==================== APP STATE ====================
@@ -872,7 +881,7 @@
       return intervals;
     }
 
-    // ==================== FETCH CONCURRENCY - WITH 4-HOUR SESSION CAP ====================
+    // ==================== FETCH CONCURRENCY - FIXED VERSION ====================
     async function fetchConcurrency() {
       if (!appState.users.length) {
         showStatusMessage('Please fetch users first', 'error');
@@ -894,35 +903,43 @@
         const userIds = appState.users.map(u => u.id);
         const batchSize = 25;
         
-        // Split the overall range into 7-day chunks
+        // FIXED: Generate 7-day windows WITHOUT gaps
         const startDate = new Date(`${dateFrom}T00:00:00.000Z`);
         const endDate = new Date(`${dateTo}T23:59:59.999Z`);
         const intervals7Day = [];
         
         let currentStart = new Date(startDate);
-        while (currentStart < endDate) {
+        while (currentStart <= endDate) {
           let currentEnd = new Date(currentStart);
           currentEnd.setDate(currentEnd.getDate() + 6);
+          currentEnd.setHours(23, 59, 59, 999);
+          
           if (currentEnd > endDate) currentEnd = new Date(endDate);
           
-          const intervalStr = `${currentStart.toISOString().split('.')[0]}Z/${currentEnd.toISOString().split('.')[0]}Z`;
+          const intervalStr = `${currentStart.toISOString()}/${currentEnd.toISOString()}`;
           intervals7Day.push(intervalStr);
           
+          // FIXED: Start next window at beginning of next day after current window ends
           currentStart = new Date(currentEnd);
           currentStart.setDate(currentStart.getDate() + 1);
+          currentStart.setHours(0, 0, 0, 0);
         }
 
         // Generate target granular intervals for the whole period
         const allGranularIntervals = generateIntervals(dateFrom, dateTo, granularity);
         
-        // Map to store presence minutes per user per interval
-        const concurrencyMinutesMap = new Map();
+        // FIXED: Map to store UNIQUE user presence per interval (deduplication)
+        const concurrencyMap = new Map();
         allGranularIntervals.forEach(interval => {
-          concurrencyMinutesMap.set(interval, new Map());
+          concurrencyMap.set(interval, new Set()); // Use Set to deduplicate users
         });
 
         updateLoadingProgress(10);
         showStatusMessage(`📅 Split into ${intervals7Day.length} x 7-day windows`, 'info');
+
+        // Get overall query boundaries for 4-hour cap calculation
+        const queryStartDate = new Date(`${dateFrom}T00:00:00.000Z`);
+        const queryEndDate = new Date(`${dateTo}T23:59:59.999Z`);
 
         // Process each 7-day window
         for (let w = 0; w < intervals7Day.length; w++) {
@@ -964,24 +981,33 @@
                       // ONLY count if presence is NOT Offline
                       if (presenceEvent.systemPresence !== 'Offline' && presenceEvent.systemPresence !== null) {
                         
-                        // CRITICAL FIX: Cap sessions at 4 hours if no end time
-                        // This prevents users who never logout from skewing overnight data
-                        let presenceEnd = presenceEvent.endTime;
+                        let presenceStart = new Date(presenceEvent.startTime);
+                        let presenceEnd = presenceEvent.endTime ? new Date(presenceEvent.endTime) : null;
                         
+                        // FIXED: Apply 4-hour cap but respect query boundaries
                         if (!presenceEnd) {
-                          const start = new Date(presenceEvent.startTime);
-                          const fourHoursLater = new Date(start.getTime() + (4 * 60 * 60 * 1000));
-                          presenceEnd = fourHoursLater.toISOString();
+                          const fourHoursLater = new Date(presenceStart.getTime() + (4 * 60 * 60 * 1000));
+                          // Cap at EITHER 4 hours OR the end of our query range, whichever is sooner
+                          presenceEnd = fourHoursLater < queryEndDate ? fourHoursLater : queryEndDate;
                         }
                         
-                        const presenceInterval = `${presenceEvent.startTime}/${presenceEnd}`;
+                        // Ensure presence doesn't extend beyond query range
+                        if (presenceStart < queryStartDate) presenceStart = queryStartDate;
+                        if (presenceEnd > queryEndDate) presenceEnd = queryEndDate;
                         
+                        // Skip if presence is entirely outside query range
+                        if (presenceStart >= queryEndDate || presenceEnd <= queryStartDate) {
+                          return;
+                        }
+                        
+                        const presenceInterval = `${presenceStart.toISOString()}/${presenceEnd.toISOString()}`;
+                        
+                        // FIXED: Use Set to track unique users per interval (automatic deduplication)
                         allGranularIntervals.forEach(granularInterval => {
                           const overlapMinutes = calculateOverlapDuration(presenceInterval, granularInterval);
                           if (overlapMinutes > 0) {
-                            const userMinutesMap = concurrencyMinutesMap.get(granularInterval);
-                            const currentMinutes = userMinutesMap.get(userId) || 0;
-                            userMinutesMap.set(userId, currentMinutes + overlapMinutes);
+                            const userSet = concurrencyMap.get(granularInterval);
+                            userSet.add(userId); // Set automatically deduplicates
                           }
                         });
                       }
@@ -1000,14 +1026,13 @@
 
         updateLoadingProgress(95);
 
-        // Convert minutes map to concurrency counts
+        // Convert Set sizes to concurrency counts
         const concurrencyData = [];
         let peakConcurrency = 0;
         let totalConcurrency = 0;
         
-        concurrencyMinutesMap.forEach((userMinutesMap, interval) => {
-          // Count users with > 0 minutes in the interval
-          const concurrent = Array.from(userMinutesMap.values()).filter(minutes => minutes > 0).length;
+        concurrencyMap.forEach((userSet, interval) => {
+          const concurrent = userSet.size; // Number of unique users in this interval
           
           concurrencyData.push({
             interval: interval,
@@ -1036,7 +1061,7 @@
         updateLoadingProgress(100);
         setTimeout(() => setLoading(false), 500);
         
-        showStatusMessage(`✅ London concurrency analysis complete - Peak: ${peakConcurrency} concurrent users over ${concurrencyData.length} intervals`, 'success');
+        showStatusMessage(`✅ FIXED London concurrency analysis complete - Peak: ${peakConcurrency} concurrent users over ${concurrencyData.length} intervals`, 'success');
         
       } catch (error) {
         setLoading(false);
@@ -1266,7 +1291,7 @@
         return; 
       }
       
-      let csv = 'Genesys Cloud Concurrency Report - London Region\n';
+      let csv = 'Genesys Cloud Concurrency Report - London Region (FIXED)\n';
       csv += `Generated: ${new Date().toLocaleString()}\n`;
       csv += `Environment: London (euw2.pure.cloud)\n`;
       csv += `Period: ${el.dateFrom.value} to ${el.dateTo.value}\n`;
@@ -1275,7 +1300,8 @@
       csv += `Total Users Analysed: ${appState.stats.totalUsers}\n`;
       csv += `Peak Concurrency: ${appState.stats.peakConcurrency}\n`;
       csv += `Average Concurrency: ${appState.stats.avgConcurrency}\n`;
-      csv += `Total Intervals: ${appState.stats.totalIntervals}\n\n`;
+      csv += `Total Intervals: ${appState.stats.totalIntervals}\n`;
+      csv += `FIXES APPLIED: 4-hour cap respects boundaries, window overlap fixed, user deduplication\n\n`;
       csv += 'PEAK INTERVALS (Exceeding Threshold)\n';
       csv += 'Interval,Concurrent Users,% of Peak,Status\n';
       
@@ -1296,9 +1322,9 @@
       const a = document.createElement('a');
       const dateStr = new Date().toISOString().split('T')[0];
       a.href = url;
-      a.download = `genesys_concurrency_london_report_${dateStr}.csv`;
+      a.download = `genesys_concurrency_london_FIXED_report_${dateStr}.csv`;
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-      showStatusMessage('✅ London report exported successfully', 'success');
+      showStatusMessage('✅ FIXED London report exported successfully', 'success');
     }
 
     function resetApplication() {
@@ -1334,7 +1360,7 @@
 
     // ==================== INITIALISATION ====================
     function initializeApp() {
-      console.log("Initializing London app...");
+      console.log("Initializing FIXED London app...");
       const last7Days = getLast7Days();
       if (el.dateFrom) el.dateFrom.value = last7Days.from;
       if (el.dateTo) el.dateTo.value = last7Days.to;
@@ -1389,7 +1415,7 @@
 
     // ==================== START ====================
     window.onload = function() {
-      console.log("London region page loaded, initializing...");
+      console.log("FIXED London region page loaded, initializing...");
       initAuth();
       initializeApp();
     };
