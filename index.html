@@ -919,74 +919,97 @@
         // Process each 7-day window
         for (let w = 0; w < intervals7Day.length; w++) {
           const windowInterval = intervals7Day[w];
-          el.loadingSubtext.innerHTML = `Processing window ${w+1}/${intervals7Day.length}: ${windowInterval}`;
           
           for (let i = 0; i < userIds.length; i += 25) {
             const batch = userIds.slice(i, i + 25);
-            const overallProgress = 10 + ((w / intervals7Day.length) * 80) + ((i / userIds.length) * (80 / intervals7Day.length));
-            updateLoadingProgress(overallProgress);
+            
+            let pageNumber = 1;
+            let hasMorePages = true;
 
-            const queryBody = {
-              interval: windowInterval,
-              userFilters: [{
-                type: 'or',
-                predicates: batch.map(userId => ({
-                  type: 'dimension',
-                  dimension: 'userId',
-                  value: userId
-                }))
-              }],
-              paging: {
-                pageSize: 100,
-                pageNumber: 1
-              }
-            };
+            while (hasMorePages) {
+              el.loadingSubtext.innerHTML = `Window ${w+1}/${intervals7Day.length} | Batch ${i}-${Math.min(i+25, userIds.length)} | Page ${pageNumber}`;
+              
+              const queryBody = {
+                interval: windowInterval,
+                userFilters: [{
+                  type: 'or',
+                  predicates: batch.map(userId => ({
+                    type: 'dimension',
+                    dimension: 'userId',
+                    value: userId
+                  }))
+                }],
+                paging: {
+                  pageSize: 100,
+                  pageNumber: pageNumber
+                }
+              };
 
-            try {
-              const response = await apiCall('/api/v2/analytics/users/details/query', {
-                method: 'POST',
-                body: JSON.stringify(queryBody)
-              });
-
-              if (response.userDetails) {
-                response.userDetails.forEach(userDetail => {
-                  const userId = userDetail.userId;
-                  if (userDetail.primaryPresence) {
-                    userDetail.primaryPresence.forEach(presenceEvent => {
-                      // ONLY count if presence is NOT Offline
-                      if (presenceEvent.systemPresence !== 'Offline' && presenceEvent.systemPresence !== null) {
-                        
-                        // Apply 4-hour session cap to prevent overnight counting
-                        let presenceEnd = presenceEvent.endTime;
-                        
-                        if (!presenceEnd) {
-                          const start = new Date(presenceEvent.startTime);
-                          const fourHoursLater = new Date(start.getTime() + (4 * 60 * 60 * 1000));
-                          presenceEnd = fourHoursLater.toISOString();
-                        }
-                        
-                        const presenceInterval = `${presenceEvent.startTime}/${presenceEnd}`;
-                        
-                        // Check overlap with each day in the range
-                        dailyIntervals.forEach(dayInterval => {
-                          const overlapMinutes = calculateOverlapDuration(presenceInterval, dayInterval);
-                          if (overlapMinutes > 0) {
-                            const userMinutesMap = concurrencyMinutesMap.get(dayInterval);
-                            const currentMinutes = userMinutesMap.get(userId) || 0;
-                            userMinutesMap.set(userId, currentMinutes + overlapMinutes);
-                          }
-                        });
-                      }
-                    });
-                  }
+              try {
+                const response = await apiCall('/api/v2/analytics/users/details/query', {
+                  method: 'POST',
+                  body: JSON.stringify(queryBody)
                 });
-              }
-            } catch (batchError) {
-              console.warn(`Window ${w+1}, batch ${i}-${i+25} failed:`, batchError);
-              showStatusMessage(`⚠️ Window ${w+1} partial failure`, 'warn');
-            }
 
-            await new Promise(resolve => setTimeout(resolve, 200));
+                if (response.userDetails) {
+                  response.userDetails.forEach(userDetail => {
+                    const userId = userDetail.userId;
+                    if (userDetail.primaryPresence) {
+                      userDetail.primaryPresence.forEach(presenceEvent => {
+                        // ONLY count if presence is NOT Offline
+                        if (presenceEvent.systemPresence !== 'Offline' && presenceEvent.systemPresence !== null) {
+                          
+                          // Apply 4-hour session cap to prevent overnight counting
+                          let presenceEnd = presenceEvent.endTime;
+                          
+                          if (!presenceEnd) {
+                            const start = new Date(presenceEvent.startTime);
+                            const fourHoursLater = new Date(start.getTime() + (4 * 60 * 60 * 1000));
+                            presenceEnd = fourHoursLater.toISOString();
+                          }
+                          
+                          const presenceInterval = `${presenceEvent.startTime}/${presenceEnd}`;
+                          
+                          // Check overlap with each day in the range
+                          dailyIntervals.forEach(dayInterval => {
+                            const overlapMinutes = calculateOverlapDuration(presenceInterval, dayInterval);
+                            if (overlapMinutes > 0) {
+                              const userMinutesMap = concurrencyMinutesMap.get(dayInterval);
+                              const currentMinutes = userMinutesMap.get(userId) || 0;
+                              userMinutesMap.set(userId, currentMinutes + overlapMinutes);
+                            }
+                          });
+                        }
+                      });
+                    }
+                  });
+                }
+
+                // Check if there are more pages
+                const totalHits = response.totalHits || 0;
+                const fetchedSoFar = pageNumber * 100;
+
+                if (fetchedSoFar >= totalHits || !response.userDetails || response.userDetails.length < 100) {
+                  hasMorePages = false;
+                } else {
+                  pageNumber++;
+                  // Rate limit protection between pages
+                  await new Promise(resolve => setTimeout(resolve, 300));
+                }
+
+                const overallProgress = 10 + ((w / intervals7Day.length) * 80) + ((i / userIds.length) * (80 / intervals7Day.length));
+                updateLoadingProgress(overallProgress);
+
+              } catch (batchError) {
+                console.warn(`Window ${w+1}, batch ${i}-${i+25}, page ${pageNumber} failed:`, batchError);
+                showStatusMessage(`⚠️ Window ${w+1} partial failure`, 'warn');
+                // Continue with next page or batch
+                hasMorePages = false;
+              }
+            }
+            
+            // Rate limit protection between batches
+            await new Promise(resolve => setTimeout(resolve, 300));
           }
         }
 
